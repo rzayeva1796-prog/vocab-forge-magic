@@ -1,0 +1,4 @@
+project_id = "qwqkrsvbmabodvmfktvj"
+
+[functions.vocabulary-ai]
+verify_jwt = false
