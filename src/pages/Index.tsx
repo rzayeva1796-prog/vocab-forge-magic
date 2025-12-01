@@ -184,11 +184,18 @@ const Index = () => {
   };
 
   const findUnknownWords = async (sentence: string) => {
+    const excludedWords = new Set([
+      "the", "a", "an", "to", "in", "is", "are", "was", "were", "be", "been",
+      "being", "have", "has", "had", "do", "does", "did", "will", "would",
+      "should", "could", "can", "may", "might", "must", "shall", "of", "for",
+      "with", "at", "by", "from", "on", "as", "but", "or", "and", "if", "then"
+    ]);
+    
     const words = sentence
       .toLowerCase()
       .replace(/[^\w\s]/g, "")
       .split(" ")
-      .filter(w => w.length > 2);
+      .filter(w => w.length > 2 && !excludedWords.has(w));
     
     const unknownList: UnknownWord[] = [];
     const learnedSet = new Set(learnedWords.map(w => w.english.toLowerCase()));
@@ -256,6 +263,53 @@ const Index = () => {
     }
   };
 
+  const handleAddCurrentWordToLearned = async () => {
+    if (!inputWord.trim() || !translation.trim()) {
+      toast({
+        title: "Error",
+        description: "Please translate a word first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const englishWord = isSwapped ? translation : inputWord;
+    const turkishWord = isSwapped ? inputWord : translation;
+
+    // Check if word exists in words table
+    const { data: wordData } = await supabase
+      .from("words")
+      .select("*")
+      .ilike("english", englishWord)
+      .ilike("turkish", turkishWord)
+      .limit(1)
+      .single();
+
+    // If word doesn't exist in database, add it first
+    if (!wordData) {
+      await supabase.from("words").insert({
+        english: englishWord,
+        turkish: turkishWord,
+        frequency_group: "1k",
+      });
+    }
+
+    // Add to learned words
+    const { error } = await supabase.from("learned_words").insert({
+      english: englishWord,
+      turkish: turkishWord,
+      frequency_group: wordData?.frequency_group || "1k",
+    });
+
+    if (!error) {
+      await loadLearnedWords();
+      toast({
+        title: "Word Added",
+        description: `"${englishWord}" added to learned words!`,
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 p-4">
       <div className="max-w-2xl mx-auto space-y-4">
@@ -302,12 +356,25 @@ const Index = () => {
           placeholder={isSwapped ? "Türkçe kelime girin..." : "Enter English word..."}
         />
 
-        <VocabularyBox
-          label={isSwapped ? "English Translation" : "Turkish Translation"}
-          value={translation}
-          readOnly
-          placeholder="Translation will appear here..."
-        />
+        <div className="flex gap-2">
+          <VocabularyBox
+            label={isSwapped ? "English Translation" : "Turkish Translation"}
+            value={translation}
+            readOnly
+            placeholder="Translation will appear here..."
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleAddCurrentWordToLearned}
+            disabled={!translation.trim()}
+            className="mt-8 shrink-0"
+            title="Add to learned words"
+          >
+            +
+          </Button>
+        </div>
 
         <VocabularyBox
           label="Example Sentence"
