@@ -114,7 +114,7 @@ const FlashCard = () => {
     let wordsAddedSinceBonus = 0;
 
     // Helper to add a word without consecutive duplicates
-    const addWord = (word: Word, count: number) => {
+    const addWord = async (word: Word, count: number) => {
       for (let i = 0; i < count; i++) {
         let wordToAdd: RoundWord;
         do {
@@ -128,14 +128,13 @@ const FlashCard = () => {
 
         // Add bonus 1k-25k word every 20 words
         if (wordsAddedSinceBonus >= 20) {
-          getNextFrequencyWord(usedIds).then(bonusWord => {
-            if (bonusWord) {
-              const bonusRoundWord: RoundWord = { ...bonusWord, star_rating: 0, roundId: `${bonusWord.id}-bonus-${Math.random()}` };
-              round.push(bonusRoundWord);
-              lastWord = bonusRoundWord;
-              wordsAddedSinceBonus = 0;
-            }
-          });
+          const bonusWord = await getNextFrequencyWord(usedIds);
+          if (bonusWord) {
+            const bonusRoundWord: RoundWord = { ...bonusWord, star_rating: 0, roundId: `${bonusWord.id}-bonus-${Math.random()}` };
+            round.push(bonusRoundWord);
+            lastWord = bonusRoundWord;
+            wordsAddedSinceBonus = 0;
+          }
         }
       }
     };
@@ -159,12 +158,22 @@ const FlashCard = () => {
     });
 
     // Add words with appropriate repetition
-    grouped.new.forEach(w => addWord(w, 1));
-    grouped[5].forEach(w => addWord(w, 1));
-    grouped[4].forEach(w => addWord(w, 2));
-    grouped[3].forEach(w => addWord(w, 3));
-    grouped[2].forEach(w => addWord(w, 4));
-    grouped[1].forEach(w => addWord(w, 5));
+    for (const w of grouped.new) await addWord(w, 1);
+    for (const w of grouped[5]) await addWord(w, 1);
+    for (const w of grouped[4]) await addWord(w, 2);
+    for (const w of grouped[3]) await addWord(w, 3);
+    for (const w of grouped[2]) await addWord(w, 4);
+    for (const w of grouped[1]) await addWord(w, 5);
+
+    // Ensure round is not empty
+    if (round.length === 0) {
+      toast({
+        title: "No Words",
+        description: "Please add more words to continue!",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setRoundWords(round);
     setCurrentIndex(0);
