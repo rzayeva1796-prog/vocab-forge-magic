@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      game_progress: {
+        Row: {
+          created_at: string
+          current_position: number
+          games_played: number
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_position?: number
+          games_played?: number
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_position?: number
+          games_played?: number
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       learned_words: {
         Row: {
           added_at: string
