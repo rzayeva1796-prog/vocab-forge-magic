@@ -39,6 +39,8 @@ const FlashCard = () => {
     new: [], 1: [], 2: [], 3: [], 4: [], 5: []
   });
   const [nextFreqIndex, setNextFreqIndex] = useState({ freq: "1k", index: 0 });
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
   useEffect(() => {
     loadGame();
@@ -290,20 +292,55 @@ const FlashCard = () => {
       .update({ star_rating: newRating, is_flipped: isFlipped })
       .eq("id", currentWord.id);
 
-    // Move to next card
-    const nextIndex = currentIndex + 1;
-    setCurrentIndex(nextIndex);
+    // Reload all learned words and regenerate round
+    const { data: learnedWords } = await supabase
+      .from("learned_words")
+      .select("*")
+      .order("added_at", { ascending: true });
+
+    if (learnedWords && learnedWords.length > 0) {
+      setWords(learnedWords);
+      setTotalWords(learnedWords.length);
+
+      // Group words by star rating
+      const grouped = {
+        new: learnedWords.filter(w => w.star_rating === 0),
+        1: learnedWords.filter(w => w.star_rating === 1),
+        2: learnedWords.filter(w => w.star_rating === 2),
+        3: learnedWords.filter(w => w.star_rating === 3),
+        4: learnedWords.filter(w => w.star_rating === 4),
+        5: learnedWords.filter(w => w.star_rating === 5),
+      };
+      setWordsByStars(grouped);
+
+      // Generate new round with updated star ratings
+      await generateRound(learnedWords);
+    }
+
     setIsFlipped(false);
+  };
 
-    await saveProgress(roundWords, nextIndex);
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
 
-    // Check if round is complete
-    if (nextIndex >= roundWords.length) {
-      toast({
-        title: "Round Complete!",
-        description: "Starting a new round...",
-      });
-      await loadGame();
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    
+    if (isLeftSwipe) {
+      handleSwipe("left");
+    }
+    if (isRightSwipe) {
+      handleSwipe("right");
     }
   };
 
@@ -426,8 +463,11 @@ const FlashCard = () => {
 
         {/* Flash Card */}
         <div
-          className="relative h-96 bg-card rounded-lg shadow-lg cursor-pointer mb-6 transition-transform hover:scale-105"
+          className="relative h-96 bg-card rounded-lg shadow-lg cursor-pointer mb-6 transition-transform hover:scale-105 select-none"
           onClick={handleFlip}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         >
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <p className="text-4xl font-bold text-center">
@@ -448,19 +488,19 @@ const FlashCard = () => {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 gap-4">
           <Button
             size="lg"
             variant="destructive"
             onClick={() => handleSwipe("left")}
-            className="flex-1 mr-4"
+            className="flex-1 h-14 text-lg font-semibold"
           >
             Don't Know
           </Button>
           <Button
             size="lg"
             onClick={() => handleSwipe("right")}
-            className="flex-1"
+            className="flex-1 h-14 text-lg font-semibold"
           >
             Know
           </Button>
