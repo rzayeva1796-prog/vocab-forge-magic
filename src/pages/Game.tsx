@@ -101,24 +101,36 @@ const Game = () => {
   const handleLeftClick = (id: number) => {
     setWrongMatch(null);
     
-    // If right is already selected, check match
+    // If clicking the same button, deselect it
+    if (selectedLeft === id) {
+      setSelectedLeft(null);
+      return;
+    }
+    
+    // Clear any previous left selection
+    setSelectedLeft(id);
+    
+    // If right is already selected, check match immediately
     if (selectedRight !== null) {
       checkMatch(id, selectedRight);
-    } else {
-      setSelectedLeft(id);
-      setSelectedRight(null);
     }
   };
 
   const handleRightClick = (rightId: number) => {
     setWrongMatch(null);
     
-    // If left is already selected, check match
+    // If clicking the same button, deselect it
+    if (selectedRight === rightId) {
+      setSelectedRight(null);
+      return;
+    }
+    
+    // Clear any previous right selection
+    setSelectedRight(rightId);
+    
+    // If left is already selected, check match immediately
     if (selectedLeft !== null) {
       checkMatch(selectedLeft, rightId);
-    } else {
-      setSelectedRight(rightId);
-      setSelectedLeft(null);
     }
   };
 
