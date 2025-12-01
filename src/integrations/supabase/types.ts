@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      flashcard_progress: {
+        Row: {
+          created_at: string | null
+          current_position: number | null
+          current_round_words: Json | null
+          id: string
+          last_word_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_position?: number | null
+          current_round_words?: Json | null
+          id?: string
+          last_word_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_position?: number | null
+          current_round_words?: Json | null
+          id?: string
+          last_word_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       game_progress: {
         Row: {
           created_at: string
@@ -44,6 +71,8 @@ export type Database = {
           english: string
           frequency_group: string
           id: string
+          is_flipped: boolean | null
+          star_rating: number | null
           turkish: string
         }
         Insert: {
@@ -51,6 +80,8 @@ export type Database = {
           english: string
           frequency_group: string
           id?: string
+          is_flipped?: boolean | null
+          star_rating?: number | null
           turkish: string
         }
         Update: {
@@ -58,6 +89,8 @@ export type Database = {
           english?: string
           frequency_group?: string
           id?: string
+          is_flipped?: boolean | null
+          star_rating?: number | null
           turkish?: string
         }
         Relationships: []
