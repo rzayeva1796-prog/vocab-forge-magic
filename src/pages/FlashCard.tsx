@@ -295,22 +295,17 @@ const FlashCard = () => {
     // Save to history
     setHistory(prev => [...prev, { word: currentWord, previousRating }]);
 
-    // Update database
+    // Update database immediately
     await supabase
       .from("learned_words")
       .update({ star_rating: newRating, is_flipped: isFlipped })
       .eq("id", currentWord.id);
 
-    // Move to next card first
+    // Move to next card
     const nextIndex = currentIndex + 1;
     
     // Check if we need to regenerate the round
     if (nextIndex >= roundWords.length) {
-      toast({
-        title: "Round Complete!",
-        description: "Starting a new round...",
-      });
-      
       // Reload all learned words and regenerate round
       const { data: learnedWords } = await supabase
         .from("learned_words")
@@ -357,13 +352,13 @@ const FlashCard = () => {
     if (!touchStart || !touchEnd) return;
     
     const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
+    const minSwipeDistance = 75;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
     
     if (isLeftSwipe) {
       handleSwipe("left");
-    }
-    if (isRightSwipe) {
+    } else if (isRightSwipe) {
       handleSwipe("right");
     }
   };
@@ -487,7 +482,7 @@ const FlashCard = () => {
 
         {/* Flash Card */}
         <div
-          className="relative h-96 bg-card rounded-lg shadow-lg cursor-pointer mb-6 transition-transform hover:scale-105 select-none"
+          className="relative h-96 bg-card rounded-lg shadow-lg cursor-pointer mb-6 transition-all duration-200 hover:scale-105 select-none"
           onClick={handleFlip}
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
@@ -498,10 +493,16 @@ const FlashCard = () => {
               {isFlipped ? currentWord.turkish : (showEnglish ? currentWord.english : "???")}
             </p>
           </div>
+          
+          {/* Swipe Hint */}
+          <div className="absolute bottom-4 left-0 right-0 flex justify-between px-8 text-sm text-muted-foreground">
+            <span>← Bilmiyorum</span>
+            <span>Biliyorum →</span>
+          </div>
         </div>
 
-        {/* Speaker Button */}
-        <div className="flex justify-center mb-6">
+        {/* Action Buttons */}
+        <div className="flex justify-center items-center gap-4">
           <Button
             size="lg"
             variant="outline"
@@ -509,36 +510,14 @@ const FlashCard = () => {
           >
             <Volume2 className="w-6 h-6" />
           </Button>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center mb-6 gap-4">
-          <Button
-            size="lg"
-            variant="destructive"
-            onClick={() => handleSwipe("left")}
-            className="flex-1 h-14 text-lg font-semibold"
-          >
-            Don't Know
-          </Button>
-          <Button
-            size="lg"
-            onClick={() => handleSwipe("right")}
-            className="flex-1 h-14 text-lg font-semibold"
-          >
-            Know
-          </Button>
-        </div>
-
-        {/* Undo Button */}
-        <div className="flex justify-center">
+          
           <Button
             variant="outline"
             onClick={handleUndo}
             disabled={history.length === 0}
           >
             <Undo2 className="w-4 h-4 mr-2" />
-            Undo
+            Geri Al
           </Button>
         </div>
       </div>
