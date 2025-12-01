@@ -7,6 +7,7 @@ import { AllWordsDrawer } from "@/components/AllWordsDrawer";
 import { LearnedWordsDrawer } from "@/components/LearnedWordsDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { makeAIRequest } from "@/lib/aiRequest";
 
 interface Word {
   english: string;
@@ -118,23 +119,11 @@ const Index = () => {
         wordInDB = true;
       } else {
         // Use AI for translation
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vocabulary-ai`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            },
-            body: JSON.stringify({
-              action: "translate",
-              word: searchWord,
-              sourceLanguage: isSwapped ? "tr" : "en",
-            }),
-          }
-        );
-
-        const data = await response.json();
+        const data = await makeAIRequest({
+          action: "translate",
+          word: searchWord,
+          sourceLanguage: isSwapped ? "tr" : "en",
+        });
         translationResult = data.result;
         
         // Add to database as 1k word
@@ -152,9 +141,10 @@ const Index = () => {
       
     } catch (error) {
       console.error("Translation error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to translate word";
       toast({
         title: "Error",
-        description: "Failed to translate word",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -164,44 +154,23 @@ const Index = () => {
 
   const generateExampleSentence = async (englishWord: string) => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vocabulary-ai`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            action: "generateSentence",
-            word: englishWord,
-            learnedWords: learnedWords.map(w => w.english),
-          }),
-        }
-      );
-
-      const data = await response.json();
+      const data = await makeAIRequest({
+        action: "generateSentence",
+        word: englishWord,
+        learnedWords: learnedWords.map(w => w.english),
+      });
       const sentence = data.result;
       setExampleSentence(sentence);
       
+      // Small delay before next request
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Translate sentence to Turkish
-      const translateResponse = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/vocabulary-ai`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            action: "translate",
-            word: sentence,
-            sourceLanguage: "en",
-          }),
-        }
-      );
-
-      const translateData = await translateResponse.json();
+      const translateData = await makeAIRequest({
+        action: "translate",
+        word: sentence,
+        sourceLanguage: "en",
+      });
       setSentenceTranslation(translateData.result);
       
       // Find unknown words
