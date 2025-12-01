@@ -292,29 +292,44 @@ const FlashCard = () => {
       .update({ star_rating: newRating, is_flipped: isFlipped })
       .eq("id", currentWord.id);
 
-    // Reload all learned words and regenerate round
-    const { data: learnedWords } = await supabase
-      .from("learned_words")
-      .select("*")
-      .order("added_at", { ascending: true });
+    // Move to next card first
+    const nextIndex = currentIndex + 1;
+    
+    // Check if we need to regenerate the round
+    if (nextIndex >= roundWords.length) {
+      toast({
+        title: "Round Complete!",
+        description: "Starting a new round...",
+      });
+      
+      // Reload all learned words and regenerate round
+      const { data: learnedWords } = await supabase
+        .from("learned_words")
+        .select("*")
+        .order("added_at", { ascending: true });
 
-    if (learnedWords && learnedWords.length > 0) {
-      setWords(learnedWords);
-      setTotalWords(learnedWords.length);
+      if (learnedWords && learnedWords.length > 0) {
+        setWords(learnedWords);
+        setTotalWords(learnedWords.length);
 
-      // Group words by star rating
-      const grouped = {
-        new: learnedWords.filter(w => w.star_rating === 0),
-        1: learnedWords.filter(w => w.star_rating === 1),
-        2: learnedWords.filter(w => w.star_rating === 2),
-        3: learnedWords.filter(w => w.star_rating === 3),
-        4: learnedWords.filter(w => w.star_rating === 4),
-        5: learnedWords.filter(w => w.star_rating === 5),
-      };
-      setWordsByStars(grouped);
+        // Group words by star rating
+        const grouped = {
+          new: learnedWords.filter(w => w.star_rating === 0),
+          1: learnedWords.filter(w => w.star_rating === 1),
+          2: learnedWords.filter(w => w.star_rating === 2),
+          3: learnedWords.filter(w => w.star_rating === 3),
+          4: learnedWords.filter(w => w.star_rating === 4),
+          5: learnedWords.filter(w => w.star_rating === 5),
+        };
+        setWordsByStars(grouped);
 
-      // Generate new round with updated star ratings
-      await generateRound(learnedWords);
+        // Generate new round with updated star ratings and reset to start
+        await generateRound(learnedWords);
+      }
+    } else {
+      // Just move to next card in current round
+      setCurrentIndex(nextIndex);
+      await saveProgress(roundWords, nextIndex);
     }
 
     setIsFlipped(false);
