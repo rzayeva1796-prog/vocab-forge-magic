@@ -246,18 +246,17 @@ const FlashCard = () => {
     }
   };
 
-  const speakWord = async (text: string) => {
+  const speakWord = (text: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke("text-to-speech", {
-        body: { text, language: "en" },
-      });
-
-      if (error) throw error;
-
-      if (data?.audioContent) {
-        const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
-        audio.play();
-      }
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      utterance.pitch = 1;
+      
+      window.speechSynthesis.speak(utterance);
     } catch (error) {
       console.error("TTS error:", error);
     }
