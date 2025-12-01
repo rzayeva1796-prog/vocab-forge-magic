@@ -21,6 +21,7 @@ const Game = () => {
   const [leftWords, setLeftWords] = useState<GameWord[]>([]);
   const [rightWords, setRightWords] = useState<GameWord[]>([]);
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
+  const [selectedRight, setSelectedRight] = useState<number | null>(null);
   const [matchedCount, setMatchedCount] = useState(0);
   const [currentPosition, setCurrentPosition] = useState(0);
   const [wrongMatch, setWrongMatch] = useState<{ left: number; right: number } | null>(null);
@@ -75,20 +76,54 @@ const Game = () => {
 
     setLeftWords([...wordsToUse]);
     
-    // Shuffle right words
-    const shuffled = [...wordsToUse].sort(() => Math.random() - 0.5);
+    // Shuffle right words and ensure no word is in the same position
+    let shuffled = [...wordsToUse].sort(() => Math.random() - 0.5);
+    
+    // Keep shuffling positions that match
+    let hasMatchingPosition = true;
+    let attempts = 0;
+    while (hasMatchingPosition && attempts < 50) {
+      hasMatchingPosition = false;
+      for (let i = 0; i < shuffled.length; i++) {
+        if (shuffled[i].id === wordsToUse[i].id) {
+          hasMatchingPosition = true;
+          // Swap with next position (or first if at end)
+          const swapIndex = (i + 1) % shuffled.length;
+          [shuffled[i], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[i]];
+        }
+      }
+      attempts++;
+    }
+    
     setRightWords(shuffled);
   };
 
   const handleLeftClick = (id: number) => {
-    setSelectedLeft(id);
     setWrongMatch(null);
+    
+    // If right is already selected, check match
+    if (selectedRight !== null) {
+      checkMatch(id, selectedRight);
+    } else {
+      setSelectedLeft(id);
+      setSelectedRight(null);
+    }
   };
 
   const handleRightClick = (rightId: number) => {
-    if (selectedLeft === null) return;
+    setWrongMatch(null);
+    
+    // If left is already selected, check match
+    if (selectedLeft !== null) {
+      checkMatch(selectedLeft, rightId);
+    } else {
+      setSelectedRight(rightId);
+      setSelectedLeft(null);
+    }
+  };
 
-    const leftWord = leftWords.find(w => w.id === selectedLeft);
+  const checkMatch = (leftId: number, rightId: number) => {
+    const leftWord = leftWords.find(w => w.id === leftId);
     const rightWord = rightWords.find(w => w.id === rightId);
 
     if (leftWord && rightWord && leftWord.english === rightWord.english) {
@@ -111,7 +146,7 @@ const Game = () => {
 
       // Update left words
       const newLeftWords = leftWords.map(w => 
-        w.id === selectedLeft ? newWord : w
+        w.id === leftId ? newWord : w
       );
       setLeftWords(newLeftWords);
 
@@ -122,12 +157,14 @@ const Game = () => {
       setRightWords(newRightWords);
 
       setSelectedLeft(null);
+      setSelectedRight(null);
     } else {
       // Wrong match - show red briefly
-      setWrongMatch({ left: selectedLeft, right: rightId });
+      setWrongMatch({ left: leftId, right: rightId });
       setTimeout(() => {
         setWrongMatch(null);
         setSelectedLeft(null);
+        setSelectedRight(null);
       }, 500);
     }
   };
@@ -171,6 +208,7 @@ const Game = () => {
   const restartGame = () => {
     setMatchedCount(0);
     setSelectedLeft(null);
+    setSelectedRight(null);
     setIsGameComplete(false);
     initializeWords(learnedWords, currentPosition);
   };
@@ -242,11 +280,13 @@ const Game = () => {
                 key={word.id}
                 onClick={() => handleRightClick(word.id)}
                 className={`w-full h-16 text-lg ${
-                  wrongMatch?.right === word.id
+                  selectedRight === word.id
+                    ? "bg-blue-500 hover:bg-blue-600 text-white"
+                    : wrongMatch?.right === word.id
                     ? "bg-red-500 hover:bg-red-600 text-white"
                     : ""
                 }`}
-                variant={wrongMatch?.right === word.id ? "default" : "outline"}
+                variant={selectedRight === word.id || wrongMatch?.right === word.id ? "default" : "outline"}
               >
                 {word.turkish}
               </Button>
