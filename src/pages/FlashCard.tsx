@@ -406,7 +406,7 @@ const FlashCard = () => {
     return Math.max(0, Math.min(100, progress));
   };
 
-  if (roundWords.length === 0) {
+  if (roundWords.length === 0 || currentIndex >= roundWords.length) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
         <div className="text-center">
