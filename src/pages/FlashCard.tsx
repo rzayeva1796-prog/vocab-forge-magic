@@ -89,11 +89,20 @@ const FlashCard = () => {
       .limit(1)
       .single();
 
-    if (progress && progress.current_round_words && Array.isArray(progress.current_round_words) && progress.current_round_words.length > 0) {
-      setRoundWords(progress.current_round_words as unknown as RoundWord[]);
-      setCurrentIndex(progress.current_position || 0);
+    if (progress && progress.current_round_words && Array.isArray(progress.current_round_words)) {
+      const savedWords = progress.current_round_words as unknown as RoundWord[];
+      const savedIndex = progress.current_position || 0;
+
+      // If we have a valid saved position inside the round, resume from there
+      if (savedWords.length > 0 && savedIndex < savedWords.length) {
+        setRoundWords(savedWords);
+        setCurrentIndex(savedIndex);
+      } else {
+        // Saved position is past the end or no words saved -> start a fresh round
+        await generateRound(learnedWords);
+      }
     } else {
-      // Generate new round
+      // No saved progress -> generate a new round
       await generateRound(learnedWords);
     }
   };
