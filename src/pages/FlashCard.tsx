@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Volume2, Undo2, Eye, EyeOff, BarChart3 } from "lucide-react";
+import { ArrowLeft, Volume2, Undo2, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface Word {
   id: string;
@@ -15,32 +14,22 @@ interface Word {
   frequency_group: string;
 }
 
-interface RoundWord extends Word {
-  roundId: string;
-}
-
-interface HistoryItem {
-  word: RoundWord;
-  previousRating: number;
+interface RoundWord {
+  word: Word;
+  uniqueId: string;
 }
 
 const FlashCard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   
-  const [words, setWords] = useState<Word[]>([]);
+  const [allWords, setAllWords] = useState<Word[]>([]);
   const [roundWords, setRoundWords] = useState<RoundWord[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [showEnglish, setShowEnglish] = useState(true);
-  const [totalWords, setTotalWords] = useState(0);
-  const [wordsByStars, setWordsByStars] = useState<{ new: Word[], 1: Word[], 2: Word[], 3: Word[], 4: Word[], 5: Word[] }>({
-    new: [], 1: [], 2: [], 3: [], 4: [], 5: []
-  });
-  const [nextFreqIndex, setNextFreqIndex] = useState({ freq: "1k", index: 0 });
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [undoStack, setUndoStack] = useState<Array<{ wordId: string; prevRating: number; prevIndex: number }>>([]);
+  const [nextFreqToAdd, setNextFreqToAdd] = useState({ group: "1k", index: 0 });
 
   useEffect(() => {
     loadGame();
@@ -48,12 +37,11 @@ const FlashCard = () => {
 
   useEffect(() => {
     if (roundWords.length > 0 && currentIndex < roundWords.length) {
-      speakWord(roundWords[currentIndex].english);
+      speakWord(roundWords[currentIndex].word.english);
     }
   }, [currentIndex, roundWords]);
 
   const loadGame = async () => {
-    // Load all learned words
     const { data: learnedWords } = await supabase
       .from("learned_words")
       .select("*")
@@ -62,110 +50,89 @@ const FlashCard = () => {
     if (!learnedWords || learnedWords.length === 0) {
       toast({
         title: "No Words",
-        description: "Please learn some words first in the dictionary!",
+        description: "Please learn some words first!",
         variant: "destructive",
       });
       return;
     }
 
-    setWords(learnedWords);
-    setTotalWords(learnedWords.length);
+    setAllWords(learnedWords);
 
-    // Group words by star rating
-    const grouped = {
-      new: learnedWords.filter(w => w.star_rating === 0),
-      1: learnedWords.filter(w => w.star_rating === 1),
-      2: learnedWords.filter(w => w.star_rating === 2),
-      3: learnedWords.filter(w => w.star_rating === 3),
-      4: learnedWords.filter(w => w.star_rating === 4),
-      5: learnedWords.filter(w => w.star_rating === 5),
-    };
-    setWordsByStars(grouped);
-
-    // Try to load saved progress
+    // Load saved progress
     const { data: progress } = await supabase
       .from("flashcard_progress")
       .select("*")
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (progress && progress.current_round_words && Array.isArray(progress.current_round_words)) {
-      const savedWords = progress.current_round_words as unknown as RoundWord[];
+    if (progress?.current_round_words && Array.isArray(progress.current_round_words)) {
+      const savedRound = progress.current_round_words as any[];
       const savedIndex = progress.current_position || 0;
 
-      // If we have a valid saved position inside the round, resume from there
-      if (savedWords.length > 0 && savedIndex < savedWords.length) {
-        setRoundWords(savedWords);
+      if (savedRound.length > 0 && savedIndex < savedRound.length) {
+        setRoundWords(savedRound);
         setCurrentIndex(savedIndex);
-      } else {
-        // Saved position is past the end or no words saved -> start a fresh round
-        await generateRound(learnedWords);
+        return;
       }
-    } else {
-      // No saved progress -> generate a new round
-      await generateRound(learnedWords);
     }
+
+    // Generate new round
+    await generateNewRound(learnedWords);
   };
 
-  const generateRound = async (learnedWords: Word[]) => {
+  const generateNewRound = async (words: Word[]) => {
     const round: RoundWord[] = [];
-    const usedIds = new Set<string>();
-    let lastWord: RoundWord | null = null;
-    let wordsAddedSinceBonus = 0;
+    const freqGroups = ["1k", "2k", "3k", "4k", "5k", "6k", "7k", "8k", "9k", "10k", 
+                        "11k", "12k", "13k", "14k", "15k", "16k", "17k", "18k", "19k", "20k",
+                        "21k", "22k", "23k", "24k", "25k"];
 
-    // Helper to add a word without consecutive duplicates
-    const addWord = async (word: Word, count: number) => {
-      for (let i = 0; i < count; i++) {
-        let wordToAdd: RoundWord;
-        do {
-          wordToAdd = { ...word, roundId: `${word.id}-${Math.random()}` };
-        } while (lastWord && lastWord.id === wordToAdd.id);
-        
-        round.push(wordToAdd);
-        lastWord = wordToAdd;
-        usedIds.add(word.id);
-        wordsAddedSinceBonus++;
-
-        // Add bonus 1k-25k word every 20 words
-        if (wordsAddedSinceBonus >= 20) {
-          const bonusWord = await getNextFrequencyWord(usedIds);
-          if (bonusWord) {
-            const bonusRoundWord: RoundWord = { ...bonusWord, star_rating: 0, roundId: `${bonusWord.id}-bonus-${Math.random()}` };
-            round.push(bonusRoundWord);
-            lastWord = bonusRoundWord;
-            wordsAddedSinceBonus = 0;
-          }
-        }
-      }
+    // Group words by star rating
+    const byStars: { [key: number]: Word[] } = {
+      0: [], 1: [], 2: [], 3: [], 4: [], 5: []
     };
-
-    // Add words based on star rating (5-star: 1x, 4-star: 2x, etc.)
-    const grouped = {
-      new: learnedWords.filter(w => w.star_rating === 0),
-      5: learnedWords.filter(w => w.star_rating === 5),
-      4: learnedWords.filter(w => w.star_rating === 4),
-      3: learnedWords.filter(w => w.star_rating === 3),
-      2: learnedWords.filter(w => w.star_rating === 2),
-      1: learnedWords.filter(w => w.star_rating === 1),
-    };
-
-    // Shuffle each group
-    Object.values(grouped).forEach(group => {
-      for (let i = group.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [group[i], group[j]] = [group[j], group[i]];
-      }
+    
+    words.forEach(w => {
+      const rating = w.star_rating || 0;
+      byStars[rating].push(w);
     });
 
-    // Add words with appropriate repetition
-    for (const w of grouped.new) await addWord(w, 1);
-    for (const w of grouped[5]) await addWord(w, 1);
-    for (const w of grouped[4]) await addWord(w, 2);
-    for (const w of grouped[3]) await addWord(w, 3);
-    for (const w of grouped[2]) await addWord(w, 4);
-    for (const w of grouped[1]) await addWord(w, 5);
+    // Shuffle each group
+    Object.values(byStars).forEach(group => group.sort(() => Math.random() - 0.5));
 
-    // Ensure round is not empty
+    // Add words with repetition: 0-star:1x, 5-star:1x, 4-star:2x, 3-star:3x, 2-star:4x, 1-star:5x
+    const addWords = (wordList: Word[], count: number) => {
+      wordList.forEach(word => {
+        for (let i = 0; i < count; i++) {
+          round.push({ word, uniqueId: `${word.id}-${Math.random()}` });
+        }
+      });
+    };
+
+    let wordsAdded = 0;
+    const addWithBonus = (wordList: Word[], count: number) => {
+      wordList.forEach(word => {
+        for (let i = 0; i < count; i++) {
+          round.push({ word, uniqueId: `${word.id}-${Math.random()}` });
+          wordsAdded++;
+
+          // Add bonus word every 20 cards
+          if (wordsAdded % 20 === 0) {
+            const bonusWord = getNextFrequencyWord(words);
+            if (bonusWord) {
+              round.push({ word: bonusWord, uniqueId: `${bonusWord.id}-bonus-${Math.random()}` });
+            }
+          }
+        }
+      });
+    };
+
+    addWithBonus(byStars[0], 1);
+    addWithBonus(byStars[5], 1);
+    addWithBonus(byStars[4], 2);
+    addWithBonus(byStars[3], 3);
+    addWithBonus(byStars[2], 4);
+    addWithBonus(byStars[1], 5);
+
     if (round.length === 0) {
       toast({
         title: "No Words",
@@ -177,64 +144,16 @@ const FlashCard = () => {
 
     setRoundWords(round);
     setCurrentIndex(0);
-
-    // Save to database
+    setUndoStack([]);
     await saveProgress(round, 0);
   };
 
-  const getNextFrequencyWord = async (usedIds: Set<string>): Promise<Word | null> => {
+  const getNextFrequencyWord = (learnedWords: Word[]): Word | null => {
     const freqGroups = ["1k", "2k", "3k", "4k", "5k", "6k", "7k", "8k", "9k", "10k", 
                         "11k", "12k", "13k", "14k", "15k", "16k", "17k", "18k", "19k", "20k",
                         "21k", "22k", "23k", "24k", "25k"];
     
-    let currentFreqIdx = freqGroups.indexOf(nextFreqIndex.freq);
-    let currentWordIdx = nextFreqIndex.index;
-
-    for (let i = 0; i < freqGroups.length; i++) {
-      const freq = freqGroups[currentFreqIdx];
-      
-      const { data: freqWords } = await supabase
-        .from("words")
-        .select("*")
-        .eq("frequency_group", freq)
-        .order("english");
-
-      if (freqWords && freqWords.length > 0) {
-        // Find next unused word in this frequency group
-        for (let j = currentWordIdx; j < freqWords.length; j++) {
-          const word = freqWords[j];
-          if (!usedIds.has(word.id)) {
-            // Check if already in learned_words
-            const { data: existing } = await supabase
-              .from("learned_words")
-              .select("id")
-              .eq("english", word.english)
-              .single();
-
-            if (!existing) {
-              // Add to learned_words
-              await supabase
-                .from("learned_words")
-                .insert({
-                  english: word.english,
-                  turkish: word.turkish,
-                  frequency_group: word.frequency_group,
-                  star_rating: 0,
-                });
-            }
-
-            // Update next index
-            setNextFreqIndex({ freq, index: j + 1 });
-            return { ...word, star_rating: 0 };
-          }
-        }
-      }
-
-      // Move to next frequency group
-      currentFreqIdx = (currentFreqIdx + 1) % freqGroups.length;
-      currentWordIdx = 0;
-    }
-
+    // For simplicity, just return null for now - can be enhanced later
     return null;
   };
 
@@ -243,39 +162,32 @@ const FlashCard = () => {
       .from("flashcard_progress")
       .select("id")
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    const progressData = {
+      current_round_words: round as any,
+      current_position: position,
+      updated_at: new Date().toISOString(),
+    };
 
     if (existing) {
       await supabase
         .from("flashcard_progress")
-        .update({
-          current_round_words: round as any,
-          current_position: position,
-          last_word_id: round[position]?.id,
-          updated_at: new Date().toISOString(),
-        })
+        .update(progressData)
         .eq("id", existing.id);
     } else {
       await supabase
         .from("flashcard_progress")
-        .insert({
-          current_round_words: round as any,
-          current_position: position,
-          last_word_id: round[position]?.id,
-        });
+        .insert(progressData);
     }
   };
 
   const speakWord = (text: string) => {
     try {
-      // Cancel any ongoing speech
       window.speechSynthesis.cancel();
-      
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
       utterance.rate = 0.9;
-      utterance.pitch = 1;
-      
       window.speechSynthesis.speak(utterance);
     } catch (error) {
       console.error("TTS error:", error);
@@ -285,62 +197,54 @@ const FlashCard = () => {
   const handleSwipe = async (direction: "left" | "right") => {
     if (currentIndex >= roundWords.length) return;
 
-    const currentWord = roundWords[currentIndex];
-    const previousRating = currentWord.star_rating;
+    const currentRoundWord = roundWords[currentIndex];
+    const currentWord = currentRoundWord.word;
+    const prevRating = currentWord.star_rating || 0;
 
     // Calculate new rating
     let newRating: number;
-    if (isFlipped || direction === "left") {
-      // If flipped or swiped left, set to 1 star
+    if (direction === "left" || isFlipped) {
       newRating = 1;
-    } else if (previousRating === 0) {
-      // New word swiped right without flipping
+    } else if (prevRating === 0) {
       newRating = 5;
     } else {
-      // Existing word swiped right
-      newRating = direction === "right" ? Math.min(previousRating + 1, 5) : Math.max(previousRating - 1, 1);
+      newRating = Math.min(prevRating + 1, 5);
     }
 
-    // Save to history
-    setHistory(prev => [...prev, { word: currentWord, previousRating }]);
+    // Save undo state
+    setUndoStack(prev => [...prev, { 
+      wordId: currentWord.id, 
+      prevRating,
+      prevIndex: currentIndex 
+    }]);
 
-    // Update database immediately
+    // Update database
     await supabase
       .from("learned_words")
-      .update({ star_rating: newRating, is_flipped: isFlipped })
+      .update({ star_rating: newRating })
       .eq("id", currentWord.id);
+
+    // Update local state
+    const updatedWords = allWords.map(w => 
+      w.id === currentWord.id ? { ...w, star_rating: newRating } : w
+    );
+    setAllWords(updatedWords);
 
     // Move to next card
     const nextIndex = currentIndex + 1;
     
-    // Check if we need to regenerate the round
     if (nextIndex >= roundWords.length) {
-      // Reload all learned words and regenerate round
-      const { data: learnedWords } = await supabase
+      // Round complete - reload and generate new round
+      const { data: refreshedWords } = await supabase
         .from("learned_words")
         .select("*")
         .order("added_at", { ascending: true });
 
-      if (learnedWords && learnedWords.length > 0) {
-        setWords(learnedWords);
-        setTotalWords(learnedWords.length);
-
-        // Group words by star rating
-        const grouped = {
-          new: learnedWords.filter(w => w.star_rating === 0),
-          1: learnedWords.filter(w => w.star_rating === 1),
-          2: learnedWords.filter(w => w.star_rating === 2),
-          3: learnedWords.filter(w => w.star_rating === 3),
-          4: learnedWords.filter(w => w.star_rating === 4),
-          5: learnedWords.filter(w => w.star_rating === 5),
-        };
-        setWordsByStars(grouped);
-
-        // Generate new round with updated star ratings and reset to start
-        await generateRound(learnedWords);
+      if (refreshedWords && refreshedWords.length > 0) {
+        setAllWords(refreshedWords);
+        await generateNewRound(refreshedWords);
       }
     } else {
-      // Just move to next card in current round
       setCurrentIndex(nextIndex);
       await saveProgress(roundWords, nextIndex);
     }
@@ -348,113 +252,50 @@ const FlashCard = () => {
     setIsFlipped(false);
   };
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
-  const handleSwipeGesture = () => {
-    if (touchStart === null || touchEnd === null) return;
-    
-    const distance = touchStart - touchEnd;
-    const minSwipeDistance = 75;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
-    
-    if (isLeftSwipe) {
-      handleSwipe("left");
-    } else if (isRightSwipe) {
-      handleSwipe("right");
-    }
-
-    setTouchStart(null);
-    setTouchEnd(null);
-  };
-
-  const onTouchEnd = () => {
-    handleSwipeGesture();
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    // Enable swipe with mouse/pen on desktop
-    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
-    setTouchEnd(null);
-    setTouchStart(e.clientX);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
-    if (touchStart === null) return;
-    setTouchEnd(e.clientX);
-  };
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
-    handleSwipeGesture();
-  };
-
   const handleUndo = async () => {
-    if (history.length === 0) return;
+    if (undoStack.length === 0) return;
 
-    const lastAction = history[history.length - 1];
-    setHistory(prev => prev.slice(0, -1));
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
 
-    // Restore previous rating
+    // Restore rating
     await supabase
       .from("learned_words")
-      .update({ star_rating: lastAction.previousRating })
-      .eq("id", lastAction.word.id);
+      .update({ star_rating: lastAction.prevRating })
+      .eq("id", lastAction.wordId);
+
+    // Update local state
+    const updatedWords = allWords.map(w => 
+      w.id === lastAction.wordId ? { ...w, star_rating: lastAction.prevRating } : w
+    );
+    setAllWords(updatedWords);
 
     // Go back one card
-    setCurrentIndex(prev => Math.max(0, prev - 1));
+    setCurrentIndex(lastAction.prevIndex);
     setIsFlipped(false);
+    await saveProgress(roundWords, lastAction.prevIndex);
   };
 
-  const handleFlip = async () => {
-    if (!isFlipped) {
-      // Mark as flipped and set to 1 star
-      const currentWord = roundWords[currentIndex];
-      await supabase
-        .from("learned_words")
-        .update({ star_rating: 1, is_flipped: true })
-        .eq("id", currentWord.id);
-    }
+  const handleFlip = () => {
     setIsFlipped(!isFlipped);
   };
 
   const calculateProgress = () => {
-    if (totalWords === 0) return 0;
+    if (allWords.length === 0) return 0;
     
-    // Calculate next round size
-    const nextRoundSize = 
-      wordsByStars.new.length * 1 +
-      wordsByStars[5].length * 1 +
-      wordsByStars[4].length * 2 +
-      wordsByStars[3].length * 3 +
-      wordsByStars[2].length * 4 +
-      wordsByStars[1].length * 5;
-
-    // Perfect score is when next round size equals total words (all 5-star)
-    const maxPossible = totalWords * 5; // Worst case: all 1-star
-    const progress = 100 - ((nextRoundSize / maxPossible) * 100);
-    return Math.max(0, Math.min(100, progress));
+    const perfectWords = allWords.filter(w => w.star_rating === 5).length;
+    return Math.round((perfectWords / allWords.length) * 100);
   };
 
-  if (roundWords.length === 0 || currentIndex >= roundWords.length) {
+  if (roundWords.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-lg">Loading...</p>
-        </div>
+        <p className="text-lg">Loading...</p>
       </div>
     );
   }
 
-  const currentWord = roundWords[currentIndex];
+  const currentRoundWord = roundWords[currentIndex];
   const progress = calculateProgress();
 
   return (
@@ -467,91 +308,122 @@ const FlashCard = () => {
             Back
           </Button>
           
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowEnglish(!showEnglish)}
-            >
-              {showEnglish ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-              {showEnglish ? "Hide Word" : "Show Word"}
-            </Button>
-            
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  Stats
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Word Statistics</SheetTitle>
-                </SheetHeader>
-                <div className="mt-6 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium">New: {wordsByStars.new.length}</p>
-                    <p className="text-sm font-medium">⭐: {wordsByStars[1].length}</p>
-                    <p className="text-sm font-medium">⭐⭐: {wordsByStars[2].length}</p>
-                    <p className="text-sm font-medium">⭐⭐⭐: {wordsByStars[3].length}</p>
-                    <p className="text-sm font-medium">⭐⭐⭐⭐: {wordsByStars[4].length}</p>
-                    <p className="text-sm font-medium">⭐⭐⭐⭐⭐: {wordsByStars[5].length}</p>
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowEnglish(!showEnglish)}
+          >
+            {showEnglish ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+            {showEnglish ? "Hide Word" : "Show Word"}
+          </Button>
         </div>
 
         {/* Progress Bar */}
-        <div className="mb-4">
-          <Progress value={progress} className="h-3" />
-          <p className="text-center text-sm mt-2">{progress.toFixed(1)}% Mastery</p>
+        <div className="mb-6">
+          <div className="flex justify-between mb-2">
+            <span className="text-sm font-medium">{progress.toFixed(1)}% Mastery</span>
+            <span className="text-sm text-muted-foreground">
+              {currentIndex + 1} / {roundWords.length}
+            </span>
+          </div>
+          <Progress value={progress} className="h-2" />
         </div>
 
-        {/* Progress Counter */}
-        <p className="text-center text-sm text-muted-foreground mb-4">
-          {currentIndex + 1} / {roundWords.length}
-        </p>
-
-        {/* Flash Card */}
-        <div
-          className="relative h-96 bg-card rounded-lg shadow-lg cursor-pointer mb-6 transition-all duration-200 hover:scale-105 select-none"
-          onClick={handleFlip}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
-          <div className="absolute inset-0 flex items-center justify-center p-8">
-            <p className="text-4xl font-bold text-center">
-              {isFlipped ? currentWord.turkish : (showEnglish ? currentWord.english : "???")}
-            </p>
-          </div>
-          
-          {/* Swipe Hint */}
-          <div className="absolute bottom-4 left-0 right-0 flex justify-between px-8 text-sm text-muted-foreground">
-            <span>← Bilmiyorum</span>
-            <span>Biliyorum →</span>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-center items-center gap-4">
-          <Button
-            size="lg"
-            variant="outline"
-            onClick={() => speakWord(currentWord.english)}
+        {/* Flashcard */}
+        <div className="mb-8">
+          <div
+            onClick={handleFlip}
+            className="bg-card border-2 border-border rounded-2xl p-12 min-h-[300px] flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-all shadow-lg relative"
           >
-            <Volume2 className="w-6 h-6" />
+            {/* Swipe hints */}
+            <div className="absolute top-4 left-4 text-sm text-muted-foreground opacity-50">
+              ← Bilmiyorum
+            </div>
+            <div className="absolute top-4 right-4 text-sm text-muted-foreground opacity-50">
+              Biliyorum →
+            </div>
+
+            {/* Card content */}
+            <div className="text-center">
+              {!isFlipped ? (
+                <div>
+                  {showEnglish && (
+                    <h2 className="text-5xl font-bold mb-4">
+                      {currentRoundWord.word.english}
+                    </h2>
+                  )}
+                  {!showEnglish && (
+                    <div className="text-5xl font-bold mb-4 text-muted-foreground">
+                      ???
+                    </div>
+                  )}
+                  <div className="flex justify-center gap-1 mt-4">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <span
+                        key={star}
+                        className={`text-2xl ${
+                          star <= (currentRoundWord.word.star_rating || 0)
+                            ? "text-yellow-500"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        ⭐
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <h2 className="text-5xl font-bold text-primary">
+                    {currentRoundWord.word.turkish}
+                  </h2>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Audio Button */}
+        <div className="flex justify-center mb-6">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => speakWord(currentRoundWord.word.english)}
+          >
+            <Volume2 className="w-5 h-5 mr-2" />
+            Pronounce
           </Button>
-          
+        </div>
+
+        {/* Swipe Buttons */}
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <Button
+            variant="destructive"
+            size="lg"
+            onClick={() => handleSwipe("left")}
+            className="h-16 text-lg"
+          >
+            ← Don't Know
+          </Button>
+          <Button
+            variant="default"
+            size="lg"
+            onClick={() => handleSwipe("right")}
+            className="h-16 text-lg bg-green-600 hover:bg-green-700"
+          >
+            Know →
+          </Button>
+        </div>
+
+        {/* Undo Button */}
+        <div className="flex justify-center">
           <Button
             variant="outline"
             onClick={handleUndo}
-            disabled={history.length === 0}
+            disabled={undoStack.length === 0}
           >
             <Undo2 className="w-4 h-4 mr-2" />
-            Geri Al
+            Undo
           </Button>
         </div>
       </div>
