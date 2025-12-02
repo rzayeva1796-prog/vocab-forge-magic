@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Gamepad2, Zap } from "lucide-react";
+import { ArrowLeft, Gamepad2, Zap, GitCompare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const GameSelection = () => {
@@ -35,6 +35,16 @@ const GameSelection = () => {
           >
             <Zap className="w-8 h-8 mr-3" />
             Flash
+          </Button>
+          
+          <Button
+            onClick={() => navigate("/game/twice")}
+            className="w-full h-20 text-xl"
+            size="lg"
+            variant="outline"
+          >
+            <GitCompare className="w-8 h-8 mr-3" />
+            Twice
           </Button>
         </div>
       </div>

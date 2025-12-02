@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Game from "./pages/Game";
 import GameSelection from "./pages/GameSelection";
 import FlashCard from "./pages/FlashCard";
+import Twice from "./pages/Twice";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/game" element={<GameSelection />} />
           <Route path="/game/pair" element={<Game />} />
           <Route path="/game/flash" element={<FlashCard />} />
+          <Route path="/game/twice" element={<Twice />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
