@@ -283,22 +283,35 @@ const Index = () => {
       .ilike("english", englishWord)
       .ilike("turkish", turkishWord)
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    let frequencyGroup = "1k";
 
     // If word doesn't exist in database, add it first
     if (!wordData) {
-      await supabase.from("words").insert({
+      const { error: insertError } = await supabase.from("words").insert({
         english: englishWord,
         turkish: turkishWord,
         frequency_group: "1k",
       });
+
+      if (!insertError) {
+        // Update allWords state with the new word
+        setAllWords(prev => [...prev, {
+          english: englishWord,
+          turkish: turkishWord,
+          frequency_group: "1k",
+        }]);
+      }
+    } else {
+      frequencyGroup = wordData.frequency_group;
     }
 
     // Add to learned words
     const { error } = await supabase.from("learned_words").insert({
       english: englishWord,
       turkish: turkishWord,
-      frequency_group: wordData?.frequency_group || "1k",
+      frequency_group: frequencyGroup,
     });
 
     if (!error) {
