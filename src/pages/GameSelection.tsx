@@ -19,7 +19,7 @@ const GameSelection = () => {
         
         <div className="space-y-4">
           <Button
-            onClick={() => window.open("https://wordflow-match-up.lovable.app", "_blank")}
+            onClick={() => window.location.href = "https://wordflow-match-up.lovable.app"}
             className="w-full h-20 text-xl"
             size="lg"
           >
