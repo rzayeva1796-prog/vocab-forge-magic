@@ -151,20 +151,28 @@ const Game = () => {
 
       // Add new word pair
       const nextIndex = (currentPosition + 5 + (newMatchedCount - 1)) % learnedWords.length;
-      const newWord: GameWord = {
-        ...learnedWords[nextIndex],
-        id: selectedLeft,
+      const baseWord = learnedWords[nextIndex];
+
+      // Create separate instances for left and right columns with their own slot ids
+      const newLeftWord: GameWord = {
+        ...baseWord,
+        id: leftId,
+      };
+
+      const newRightWord: GameWord = {
+        ...baseWord,
+        id: rightId,
       };
 
       // Update left words
       const newLeftWords = leftWords.map(w => 
-        w.id === leftId ? newWord : w
+        w.id === leftId ? newLeftWord : w
       );
       setLeftWords(newLeftWords);
 
-      // Update right words with same new word but keep position
+      // Update right words while preserving unique ids per slot
       const newRightWords = rightWords.map(w =>
-        w.id === rightId ? newWord : w
+        w.id === rightId ? newRightWord : w
       );
       setRightWords(newRightWords);
 

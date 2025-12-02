@@ -357,8 +357,8 @@ const FlashCard = () => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
+  const handleSwipeGesture = () => {
+    if (touchStart === null || touchEnd === null) return;
     
     const distance = touchStart - touchEnd;
     const minSwipeDistance = 75;
@@ -370,6 +370,31 @@ const FlashCard = () => {
     } else if (isRightSwipe) {
       handleSwipe("right");
     }
+
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
+  const onTouchEnd = () => {
+    handleSwipeGesture();
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Enable swipe with mouse/pen on desktop
+    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+    setTouchEnd(null);
+    setTouchStart(e.clientX);
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+    if (touchStart === null) return;
+    setTouchEnd(e.clientX);
+  };
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse" && e.pointerType !== "pen") return;
+    handleSwipeGesture();
   };
 
   const handleUndo = async () => {
