@@ -6,181 +6,171 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface Word {
+  id: string;
   english: string;
   turkish: string;
 }
 
 interface GameWord extends Word {
-  id: number;
+  slotId: number;
+}
+
+interface GameProgress {
+  used_word_ids: string[];
+  games_played: number;
 }
 
 const Game = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [learnedWords, setLearnedWords] = useState<Word[]>([]);
+  const [allWords, setAllWords] = useState<Word[]>([]);
   const [leftWords, setLeftWords] = useState<GameWord[]>([]);
   const [rightWords, setRightWords] = useState<GameWord[]>([]);
   const [selectedLeft, setSelectedLeft] = useState<number | null>(null);
   const [selectedRight, setSelectedRight] = useState<number | null>(null);
   const [matchedCount, setMatchedCount] = useState(0);
-  const [currentPosition, setCurrentPosition] = useState(0);
+  const [usedWordIds, setUsedWordIds] = useState<string[]>([]);
   const [wrongMatch, setWrongMatch] = useState<{ left: number; right: number } | null>(null);
   const [isGameComplete, setIsGameComplete] = useState(false);
+  const [availableWords, setAvailableWords] = useState<Word[]>([]);
 
   useEffect(() => {
     loadGameData();
   }, []);
 
   const loadGameData = async () => {
-    // Load learned words
+    // Load all learned words
     const { data: words } = await supabase
       .from("learned_words")
-      .select("english, turkish")
+      .select("id, english, turkish")
       .order("added_at", { ascending: true });
 
-    if (words && words.length > 0) {
-      setLearnedWords(words);
-
-      // Load game progress
-      const { data: progress } = await supabase
-        .from("game_progress")
-        .select("*")
-        .limit(1)
-        .single();
-
-      const position = progress?.current_position || 0;
-      setCurrentPosition(position);
-
-      // Initialize first 5 pairs
-      initializeWords(words, position);
-    } else {
+    if (!words || words.length === 0) {
       toast({
         title: "No Words",
         description: "Please learn some words first in the dictionary!",
         variant: "destructive",
       });
+      return;
     }
+
+    setAllWords(words);
+
+    // Load game progress
+    const { data: progress } = await supabase
+      .from("game_progress")
+      .select("*")
+      .limit(1)
+      .maybeSingle();
+
+    let usedIds: string[] = [];
+    if (progress?.current_position) {
+      try {
+        const parsed = JSON.parse(progress.current_position as any);
+        if (Array.isArray(parsed)) {
+          usedIds = parsed;
+        }
+      } catch (e) {
+        console.log("No valid progress found, starting fresh");
+      }
+    }
+
+    setUsedWordIds(usedIds);
+    initializeGame(words, usedIds);
   };
 
-  const initializeWords = (words: Word[], startPosition: number) => {
-    const wordsToUse: GameWord[] = [];
-    const totalWords = words.length;
-
-    for (let i = 0; i < 5; i++) {
-      const index = (startPosition + i) % totalWords;
-      wordsToUse.push({
-        ...words[index],
-        id: i,
-      });
+  const initializeGame = (words: Word[], usedIds: string[]) => {
+    // Get available words (not yet used in current cycle)
+    let available = words.filter(w => !usedIds.includes(w.id));
+    
+    // If less than 20 available, start new cycle
+    if (available.length < 20) {
+      available = [...words];
+      setUsedWordIds([]);
     }
 
-    setLeftWords([...wordsToUse]);
-    
-    // Shuffle right words and ensure no word is in the same position
-    let shuffled = [...wordsToUse].sort(() => Math.random() - 0.5);
-    
-    // Keep shuffling positions that match
-    let hasMatchingPosition = true;
+    // Shuffle and take 20 words
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+    const selectedWords = shuffled.slice(0, Math.min(20, shuffled.length));
+    setAvailableWords(selectedWords);
+
+    // Initialize first 5 pairs
+    const firstFive = selectedWords.slice(0, 5).map((word, index) => ({
+      ...word,
+      slotId: index,
+    }));
+
+    setLeftWords(firstFive);
+
+    // Shuffle right side ensuring no word is in same position
+    let rightShuffled = [...firstFive];
     let attempts = 0;
-    while (hasMatchingPosition && attempts < 50) {
-      hasMatchingPosition = false;
-      for (let i = 0; i < shuffled.length; i++) {
-        if (shuffled[i].id === wordsToUse[i].id) {
-          hasMatchingPosition = true;
-          // Swap with next position (or first if at end)
-          const swapIndex = (i + 1) % shuffled.length;
-          [shuffled[i], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[i]];
-        }
-      }
+    let hasMatch = true;
+
+    while (hasMatch && attempts < 50) {
+      rightShuffled.sort(() => Math.random() - 0.5);
+      hasMatch = rightShuffled.some((word, idx) => word.id === firstFive[idx].id);
       attempts++;
     }
-    
-    setRightWords(shuffled);
+
+    setRightWords(rightShuffled);
   };
 
-  const handleLeftClick = (id: number) => {
+  const handleLeftClick = (slotId: number) => {
     setWrongMatch(null);
-    
-    // If clicking the same button, deselect it
-    if (selectedLeft === id) {
+    if (selectedLeft === slotId) {
       setSelectedLeft(null);
       return;
     }
-    
-    // Clear any previous left selection
-    setSelectedLeft(id);
-    
-    // If right is already selected, check match immediately
+    setSelectedLeft(slotId);
     if (selectedRight !== null) {
-      checkMatch(id, selectedRight);
+      checkMatch(slotId, selectedRight);
     }
   };
 
-  const handleRightClick = (rightId: number) => {
+  const handleRightClick = (slotId: number) => {
     setWrongMatch(null);
-    
-    // If clicking the same button, deselect it
-    if (selectedRight === rightId) {
+    if (selectedRight === slotId) {
       setSelectedRight(null);
       return;
     }
-    
-    // Clear any previous right selection
-    setSelectedRight(rightId);
-    
-    // If left is already selected, check match immediately
+    setSelectedRight(slotId);
     if (selectedLeft !== null) {
-      checkMatch(selectedLeft, rightId);
+      checkMatch(selectedLeft, slotId);
     }
   };
 
-  const checkMatch = (leftId: number, rightId: number) => {
-    const leftWord = leftWords.find(w => w.id === leftId);
-    const rightWord = rightWords.find(w => w.id === rightId);
+  const checkMatch = (leftSlot: number, rightSlot: number) => {
+    const leftWord = leftWords.find(w => w.slotId === leftSlot);
+    const rightWord = rightWords.find(w => w.slotId === rightSlot);
 
-    if (leftWord && rightWord && leftWord.english === rightWord.english) {
+    if (leftWord && rightWord && leftWord.id === rightWord.id) {
       // Correct match
       const newMatchedCount = matchedCount + 1;
       setMatchedCount(newMatchedCount);
 
       if (newMatchedCount >= 20) {
-        // Game complete
         completeGame();
         return;
       }
 
-      // Add new word pair
-      const nextIndex = (currentPosition + 5 + (newMatchedCount - 1)) % learnedWords.length;
-      const baseWord = learnedWords[nextIndex];
+      // Add new word from available pool
+      const nextWordIndex = 5 + (newMatchedCount - 1);
+      if (nextWordIndex < availableWords.length) {
+        const newWord = availableWords[nextWordIndex];
+        
+        const newLeftWord: GameWord = { ...newWord, slotId: leftSlot };
+        const newRightWord: GameWord = { ...newWord, slotId: rightSlot };
 
-      // Create separate instances for left and right columns with their own slot ids
-      const newLeftWord: GameWord = {
-        ...baseWord,
-        id: leftId,
-      };
-
-      const newRightWord: GameWord = {
-        ...baseWord,
-        id: rightId,
-      };
-
-      // Update left words
-      const newLeftWords = leftWords.map(w => 
-        w.id === leftId ? newLeftWord : w
-      );
-      setLeftWords(newLeftWords);
-
-      // Update right words while preserving unique ids per slot
-      const newRightWords = rightWords.map(w =>
-        w.id === rightId ? newRightWord : w
-      );
-      setRightWords(newRightWords);
+        setLeftWords(prev => prev.map(w => w.slotId === leftSlot ? newLeftWord : w));
+        setRightWords(prev => prev.map(w => w.slotId === rightSlot ? newRightWord : w));
+      }
 
       setSelectedLeft(null);
       setSelectedRight(null);
     } else {
-      // Wrong match - show red briefly
-      setWrongMatch({ left: leftId, right: rightId });
+      // Wrong match
+      setWrongMatch({ left: leftSlot, right: rightSlot });
       setTimeout(() => {
         setWrongMatch(null);
         setSelectedLeft(null);
@@ -191,21 +181,25 @@ const Game = () => {
 
   const completeGame = async () => {
     setIsGameComplete(true);
+
+    // Update used word IDs
+    const newUsedIds = [...usedWordIds, ...availableWords.map(w => w.id)];
     
-    // Update game progress
-    const newPosition = (currentPosition + 20) % learnedWords.length;
-    
+    // If we've used all words, reset the cycle
+    const finalUsedIds = newUsedIds.length >= allWords.length ? [] : newUsedIds;
+
+    // Save progress
     const { data: existingProgress } = await supabase
       .from("game_progress")
       .select("*")
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existingProgress) {
       await supabase
         .from("game_progress")
         .update({
-          current_position: newPosition,
+          current_position: JSON.stringify(finalUsedIds) as any,
           games_played: existingProgress.games_played + 1,
           updated_at: new Date().toISOString(),
         })
@@ -214,7 +208,7 @@ const Game = () => {
       await supabase
         .from("game_progress")
         .insert({
-          current_position: newPosition,
+          current_position: JSON.stringify(finalUsedIds) as any,
           games_played: 1,
         });
     }
@@ -230,7 +224,7 @@ const Game = () => {
     setSelectedLeft(null);
     setSelectedRight(null);
     setIsGameComplete(false);
-    initializeWords(learnedWords, currentPosition);
+    loadGameData();
   };
 
   if (isGameComplete) {
@@ -245,9 +239,9 @@ const Game = () => {
             <Button onClick={restartGame} className="w-full" size="lg">
               Play Again
             </Button>
-            <Button onClick={() => navigate("/")} variant="outline" className="w-full" size="lg">
+            <Button onClick={() => navigate("/game")} variant="outline" className="w-full" size="lg">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to Home
+              Back to Game Selection
             </Button>
           </div>
         </div>
@@ -260,7 +254,7 @@ const Game = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between py-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/")}>
+          <Button variant="ghost" onClick={() => navigate("/game")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>
@@ -277,16 +271,16 @@ const Game = () => {
           <div className="space-y-3">
             {leftWords.map((word) => (
               <Button
-                key={word.id}
-                onClick={() => handleLeftClick(word.id)}
+                key={word.slotId}
+                onClick={() => handleLeftClick(word.slotId)}
                 className={`w-full h-16 text-lg ${
-                  selectedLeft === word.id
+                  selectedLeft === word.slotId
                     ? "bg-blue-500 hover:bg-blue-600 text-white"
-                    : wrongMatch?.left === word.id
+                    : wrongMatch?.left === word.slotId
                     ? "bg-red-500 hover:bg-red-600 text-white"
                     : ""
                 }`}
-                variant={selectedLeft === word.id || wrongMatch?.left === word.id ? "default" : "outline"}
+                variant={selectedLeft === word.slotId || wrongMatch?.left === word.slotId ? "default" : "outline"}
               >
                 {word.english}
               </Button>
@@ -297,16 +291,16 @@ const Game = () => {
           <div className="space-y-3">
             {rightWords.map((word) => (
               <Button
-                key={word.id}
-                onClick={() => handleRightClick(word.id)}
+                key={word.slotId}
+                onClick={() => handleRightClick(word.slotId)}
                 className={`w-full h-16 text-lg ${
-                  selectedRight === word.id
+                  selectedRight === word.slotId
                     ? "bg-blue-500 hover:bg-blue-600 text-white"
-                    : wrongMatch?.right === word.id
+                    : wrongMatch?.right === word.slotId
                     ? "bg-red-500 hover:bg-red-600 text-white"
                     : ""
                 }`}
-                variant={selectedRight === word.id || wrongMatch?.right === word.id ? "default" : "outline"}
+                variant={selectedRight === word.slotId || wrongMatch?.right === word.slotId ? "default" : "outline"}
               >
                 {word.turkish}
               </Button>
