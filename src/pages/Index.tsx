@@ -360,7 +360,7 @@ const Index = () => {
           <VocabularyBox
             label={isSwapped ? "English Translation" : "Turkish Translation"}
             value={translation}
-            readOnly
+            onChange={setTranslation}
             placeholder="Translation will appear here..."
             className="flex-1"
           />
