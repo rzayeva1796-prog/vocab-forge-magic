@@ -4,8 +4,19 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, Trash2, FolderPlus, Package, Upload, ArrowLeft } from "lucide-react";
+import { GraduationCap, Trash2, FolderPlus, Package, ArrowLeft, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
 
@@ -69,6 +80,40 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     );
 
     setPackages(packagesWithCount);
+  };
+
+  const handleDeletePackage = async (packageId: string, packageName: string) => {
+    try {
+      // First, remove package_id from words (don't delete the words themselves)
+      await supabase
+        .from("learned_words")
+        .update({ package_id: null })
+        .eq("package_id", packageId);
+
+      // Then delete the package
+      const { error } = await supabase
+        .from("word_packages")
+        .delete()
+        .eq("id", packageId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Başarılı",
+        description: `"${packageName}" paketi silindi.`,
+      });
+
+      await loadPackages();
+      onWordsAdded?.();
+      setSelectedPackage("all");
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast({
+        title: "Hata",
+        description: "Paket silinirken bir hata oluştu.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -315,14 +360,37 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
           Tümü ({words.length})
         </Button>
         {packages.map((pkg) => (
-          <Button
-            key={pkg.id}
-            variant={selectedPackage === pkg.id ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedPackage(pkg.id)}
-          >
-            {pkg.name} ({getPackageWordCount(pkg.id)})
-          </Button>
+          <div key={pkg.id} className="flex items-center gap-1">
+            <Button
+              variant={selectedPackage === pkg.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedPackage(pkg.id)}
+            >
+              {pkg.name} ({getPackageWordCount(pkg.id)})
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <X className="w-3 h-3 text-destructive" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Paketi Sil</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{pkg.name}" paketini silmek istediğinize emin misiniz? 
+                    Kelimeler silinmeyecek, sadece paket bağlantısı kaldırılacak.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeletePackage(pkg.id, pkg.name)}>
+                    Sil
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         ))}
       </div>
 
