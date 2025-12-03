@@ -19,7 +19,7 @@ const GameSelection = () => {
         
         <div className="space-y-4">
           <Button
-            onClick={() => window.location.href = "https://wordflow-match-up.lovable.app"}
+            onClick={() => window.location.href = "https://wordfall-mix.lovable.app"}
             className="w-full h-20 text-xl"
             size="lg"
           >
@@ -28,7 +28,7 @@ const GameSelection = () => {
           </Button>
           
           <Button
-            onClick={() => navigate("/game/flash")}
+            onClick={() => window.location.href = "https://vocab-quest-cards.lovable.app"}
             className="w-full h-20 text-xl"
             size="lg"
             variant="secondary"
