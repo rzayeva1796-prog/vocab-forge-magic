@@ -116,6 +116,46 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     }
   };
 
+  const handleDeleteOrphanWords = async () => {
+    try {
+      const { data: orphanWords, error: fetchError } = await supabase
+        .from("learned_words")
+        .select("id")
+        .is("package_id", null);
+
+      if (fetchError) throw fetchError;
+
+      if (!orphanWords || orphanWords.length === 0) {
+        toast({
+          title: "Bilgi",
+          description: "Paketsiz kelime bulunamadı.",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("learned_words")
+        .delete()
+        .is("package_id", null);
+
+      if (error) throw error;
+
+      toast({
+        title: "Başarılı",
+        description: `${orphanWords.length} paketsiz kelime silindi.`,
+      });
+
+      onWordsAdded?.();
+    } catch (error) {
+      console.error("Delete orphan words error:", error);
+      toast({
+        title: "Hata",
+        description: "Kelimeler silinirken bir hata oluştu.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !newPackageName.trim()) {
@@ -392,6 +432,29 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
             </AlertDialog>
           </div>
         ))}
+        
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
+              <Trash2 className="w-3 h-3 mr-1" />
+              Paketsiz Kelimeleri Sil
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Paketsiz Kelimeleri Sil</AlertDialogTitle>
+              <AlertDialogDescription>
+                Hiçbir pakete ait olmayan tüm kelimeler silinecek. Bu işlem geri alınamaz.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>İptal</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteOrphanWords}>
+                Sil
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <ScrollArea className="h-[calc(100vh-14rem)]">
