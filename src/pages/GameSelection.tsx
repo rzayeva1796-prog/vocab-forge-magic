@@ -24,7 +24,7 @@ const GameSelection = () => {
             size="lg"
           >
             <Gamepad2 className="w-8 h-8 mr-3" />
-            Pair
+            Tetris
           </Button>
           
           <Button
@@ -34,7 +34,7 @@ const GameSelection = () => {
             variant="secondary"
           >
             <Zap className="w-8 h-8 mr-3" />
-            Flash
+            Kart
           </Button>
           
           <Button
@@ -44,7 +44,7 @@ const GameSelection = () => {
             variant="outline"
           >
             <GitCompare className="w-8 h-8 mr-3" />
-            Twice
+            Eşleştirme
           </Button>
         </div>
       </div>
