@@ -38,7 +38,7 @@ const GameSelection = () => {
           </Button>
           
           <Button
-            onClick={() => navigate("/game/twice")}
+            onClick={() => window.location.href = "https://wordflow-match-up.lovable.app"}
             className="w-full h-20 text-xl"
             size="lg"
             variant="outline"
