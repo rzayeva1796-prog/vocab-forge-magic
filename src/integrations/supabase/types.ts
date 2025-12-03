@@ -72,6 +72,7 @@ export type Database = {
           frequency_group: string
           id: string
           is_flipped: boolean | null
+          package_id: string | null
           star_rating: number | null
           turkish: string
         }
@@ -81,6 +82,7 @@ export type Database = {
           frequency_group: string
           id?: string
           is_flipped?: boolean | null
+          package_id?: string | null
           star_rating?: number | null
           turkish: string
         }
@@ -90,8 +92,35 @@ export type Database = {
           frequency_group?: string
           id?: string
           is_flipped?: boolean | null
+          package_id?: string | null
           star_rating?: number | null
           turkish?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learned_words_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "word_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      word_packages: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
         }
         Relationships: []
       }
