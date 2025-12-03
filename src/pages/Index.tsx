@@ -14,6 +14,7 @@ interface Word {
   english: string;
   turkish: string;
   frequency_group: string;
+  package_id?: string | null;
 }
 
 interface UnknownWord {
@@ -86,7 +87,7 @@ const Index = () => {
   const loadLearnedWords = async () => {
     const { data, error } = await supabase
       .from("learned_words")
-      .select("*")
+      .select("english, turkish, frequency_group, package_id")
       .order("added_at", { ascending: false });
 
     if (!error && data) {
@@ -337,7 +338,7 @@ const Index = () => {
             Vocabulary Learner
           </h1>
           <div className="flex gap-2">
-            <LearnedWordsDrawer words={learnedWords} onRemove={handleRemoveLearned} />
+            <LearnedWordsDrawer words={learnedWords} onRemove={handleRemoveLearned} onWordsAdded={loadLearnedWords} />
             <AllWordsDrawer words={allWords} />
           </div>
         </div>
