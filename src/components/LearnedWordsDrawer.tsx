@@ -157,24 +157,32 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         return;
       }
 
-      // Insert unique words with package_id
-      const wordsToInsert = uniqueWords.map((w) => ({
-        english: w.english,
-        turkish: w.turkish,
-        frequency_group: "1k",
-        star_rating: 0,
-        package_id: packageData.id,
-      }));
+      // Insert unique words with package_id one by one to handle any remaining duplicates
+      let insertedCount = 0;
+      for (const w of uniqueWords) {
+        const { error: insertError } = await supabase
+          .from("learned_words")
+          .upsert(
+            {
+              english: w.english,
+              turkish: w.turkish,
+              frequency_group: "1k",
+              star_rating: 0,
+              package_id: packageData.id,
+            },
+            { onConflict: "english,turkish", ignoreDuplicates: true }
+          );
 
-      const { error: insertError } = await supabase
-        .from("learned_words")
-        .insert(wordsToInsert);
+        if (!insertError) {
+          insertedCount++;
+        }
+      }
 
-      if (insertError) throw insertError;
+      const skippedCount = newWords.length - insertedCount;
 
       toast({
         title: "Başarılı",
-        description: `${uniqueWords.length} kelime eklendi. (${newWords.length - uniqueWords.length} tekrar atlandı)`,
+        description: `${insertedCount} kelime eklendi. (${skippedCount} tekrar atlandı)`,
       });
 
       // Reset state
