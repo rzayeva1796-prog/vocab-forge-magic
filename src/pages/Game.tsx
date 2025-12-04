@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trophy } from "lucide-react";
+import { ArrowLeft, Trophy, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Word {
   id: string;
@@ -15,14 +16,10 @@ interface GameWord extends Word {
   slotId: number;
 }
 
-interface GameProgress {
-  used_word_ids: string[];
-  games_played: number;
-}
-
 const Game = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [leftWords, setLeftWords] = useState<GameWord[]>([]);
   const [rightWords, setRightWords] = useState<GameWord[]>([]);
@@ -35,10 +32,14 @@ const Game = () => {
   const [availableWords, setAvailableWords] = useState<Word[]>([]);
 
   useEffect(() => {
-    loadGameData();
-  }, []);
+    if (!authLoading && user) {
+      loadGameData();
+    }
+  }, [user, authLoading]);
 
   const loadGameData = async () => {
+    if (!user) return;
+
     // Load all learned words
     const { data: words } = await supabase
       .from("learned_words")
@@ -56,10 +57,11 @@ const Game = () => {
 
     setAllWords(words);
 
-    // Load game progress
+    // Load game progress for this user
     const { data: progress } = await supabase
       .from("game_progress")
       .select("*")
+      .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
 
@@ -180,6 +182,7 @@ const Game = () => {
   };
 
   const completeGame = async () => {
+    if (!user) return;
     setIsGameComplete(true);
 
     // Update used word IDs
@@ -188,10 +191,11 @@ const Game = () => {
     // If we've used all words, reset the cycle
     const finalUsedIds = newUsedIds.length >= allWords.length ? [] : newUsedIds;
 
-    // Save progress
+    // Save progress for this user
     const { data: existingProgress } = await supabase
       .from("game_progress")
       .select("*")
+      .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
 
@@ -210,6 +214,7 @@ const Game = () => {
         .insert({
           current_position: JSON.stringify(finalUsedIds) as any,
           games_played: 1,
+          user_id: user.id,
         });
     }
 
@@ -226,6 +231,35 @@ const Game = () => {
     setIsGameComplete(false);
     loadGameData();
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
+        <p>Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <h1 className="text-2xl font-bold text-primary">Giriş Gerekli</h1>
+          <p className="text-muted-foreground">
+            Oyun ilerlemesini kaydetmek için giriş yapın
+          </p>
+          <Button onClick={() => navigate("/auth")} size="lg">
+            <LogIn className="w-4 h-4 mr-2" />
+            Giriş Yap
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/game")}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Geri
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isGameComplete) {
     return (
