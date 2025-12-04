@@ -73,6 +73,7 @@ export type Database = {
           id: string
           is_flipped: boolean | null
           package_id: string | null
+          package_name: string | null
           star_rating: number | null
           turkish: string
         }
@@ -83,6 +84,7 @@ export type Database = {
           id?: string
           is_flipped?: boolean | null
           package_id?: string | null
+          package_name?: string | null
           star_rating?: number | null
           turkish: string
         }
@@ -93,6 +95,7 @@ export type Database = {
           id?: string
           is_flipped?: boolean | null
           package_id?: string | null
+          package_name?: string | null
           star_rating?: number | null
           turkish?: string
         }

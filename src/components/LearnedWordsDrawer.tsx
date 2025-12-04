@@ -84,10 +84,10 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
 
   const handleDeletePackage = async (packageId: string, packageName: string) => {
     try {
-      // First, remove package_id from words (don't delete the words themselves)
+      // First, remove package_id and package_name from words (don't delete the words themselves)
       await supabase
         .from("learned_words")
-        .update({ package_id: null })
+        .update({ package_id: null, package_name: null })
         .eq("package_id", packageId);
 
       // Then delete the package
@@ -254,6 +254,7 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
               frequency_group: "1k",
               star_rating: 0,
               package_id: packageData.id,
+              package_name: newPackageName.trim(),
             },
             { onConflict: "english,turkish", ignoreDuplicates: true }
           );
