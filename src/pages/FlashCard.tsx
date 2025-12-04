@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Volume2, Undo2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Volume2, Undo2, Eye, EyeOff, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Word {
   id: string;
@@ -22,6 +23,7 @@ interface RoundWord {
 const FlashCard = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
   
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [roundWords, setRoundWords] = useState<RoundWord[]>([]);
@@ -29,11 +31,12 @@ const FlashCard = () => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showEnglish, setShowEnglish] = useState(true);
   const [undoStack, setUndoStack] = useState<Array<{ wordId: string; prevRating: number; prevIndex: number }>>([]);
-  const [nextFreqToAdd, setNextFreqToAdd] = useState({ group: "1k", index: 0 });
 
   useEffect(() => {
-    loadGame();
-  }, []);
+    if (!authLoading && user) {
+      loadGame();
+    }
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (roundWords.length > 0 && currentIndex < roundWords.length) {
@@ -42,6 +45,8 @@ const FlashCard = () => {
   }, [currentIndex, roundWords]);
 
   const loadGame = async () => {
+    if (!user) return;
+
     const { data: learnedWords } = await supabase
       .from("learned_words")
       .select("*")
@@ -58,10 +63,11 @@ const FlashCard = () => {
 
     setAllWords(learnedWords);
 
-    // Load saved progress
+    // Load saved progress for this user
     const { data: progress } = await supabase
       .from("flashcard_progress")
       .select("*")
+      .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
 
@@ -82,9 +88,6 @@ const FlashCard = () => {
 
   const generateNewRound = async (words: Word[]) => {
     const round: RoundWord[] = [];
-    const freqGroups = ["1k", "2k", "3k", "4k", "5k", "6k", "7k", "8k", "9k", "10k", 
-                        "11k", "12k", "13k", "14k", "15k", "16k", "17k", "18k", "19k", "20k",
-                        "21k", "22k", "23k", "24k", "25k"];
 
     // Group words by star rating
     const byStars: { [key: number]: Word[] } = {
@@ -99,7 +102,7 @@ const FlashCard = () => {
     // Shuffle each group
     Object.values(byStars).forEach(group => group.sort(() => Math.random() - 0.5));
 
-    // Add words with repetition: 0-star:1x, 5-star:1x, 4-star:2x, 3-star:3x, 2-star:4x, 1-star:5x
+    // Add words with repetition
     const addWords = (wordList: Word[], count: number) => {
       wordList.forEach(word => {
         for (let i = 0; i < count; i++) {
@@ -108,30 +111,12 @@ const FlashCard = () => {
       });
     };
 
-    let wordsAdded = 0;
-    const addWithBonus = (wordList: Word[], count: number) => {
-      wordList.forEach(word => {
-        for (let i = 0; i < count; i++) {
-          round.push({ word, uniqueId: `${word.id}-${Math.random()}` });
-          wordsAdded++;
-
-          // Add bonus word every 20 cards
-          if (wordsAdded % 20 === 0) {
-            const bonusWord = getNextFrequencyWord(words);
-            if (bonusWord) {
-              round.push({ word: bonusWord, uniqueId: `${bonusWord.id}-bonus-${Math.random()}` });
-            }
-          }
-        }
-      });
-    };
-
-    addWithBonus(byStars[0], 1);
-    addWithBonus(byStars[5], 1);
-    addWithBonus(byStars[4], 2);
-    addWithBonus(byStars[3], 3);
-    addWithBonus(byStars[2], 4);
-    addWithBonus(byStars[1], 5);
+    addWords(byStars[0], 1);
+    addWords(byStars[5], 1);
+    addWords(byStars[4], 2);
+    addWords(byStars[3], 3);
+    addWords(byStars[2], 4);
+    addWords(byStars[1], 5);
 
     if (round.length === 0) {
       toast({
@@ -148,19 +133,13 @@ const FlashCard = () => {
     await saveProgress(round, 0);
   };
 
-  const getNextFrequencyWord = (learnedWords: Word[]): Word | null => {
-    const freqGroups = ["1k", "2k", "3k", "4k", "5k", "6k", "7k", "8k", "9k", "10k", 
-                        "11k", "12k", "13k", "14k", "15k", "16k", "17k", "18k", "19k", "20k",
-                        "21k", "22k", "23k", "24k", "25k"];
-    
-    // For simplicity, just return null for now - can be enhanced later
-    return null;
-  };
-
   const saveProgress = async (round: RoundWord[], position: number) => {
+    if (!user) return;
+
     const { data: existing } = await supabase
       .from("flashcard_progress")
       .select("id")
+      .eq("user_id", user.id)
       .limit(1)
       .maybeSingle();
 
@@ -178,7 +157,10 @@ const FlashCard = () => {
     } else {
       await supabase
         .from("flashcard_progress")
-        .insert(progressData);
+        .insert({
+          ...progressData,
+          user_id: user.id,
+        });
     }
   };
 
@@ -286,6 +268,35 @@ const FlashCard = () => {
     const perfectWords = allWords.filter(w => w.star_rating === 5).length;
     return Math.round((perfectWords / allWords.length) * 100);
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
+        <p>Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center space-y-6">
+          <h1 className="text-2xl font-bold text-primary">Giriş Gerekli</h1>
+          <p className="text-muted-foreground">
+            Oyun ilerlemesini kaydetmek için giriş yapın
+          </p>
+          <Button onClick={() => navigate("/auth")} size="lg">
+            <LogIn className="w-4 h-4 mr-2" />
+            Giriş Yap
+          </Button>
+          <Button variant="ghost" onClick={() => navigate("/game")}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Geri
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (roundWords.length === 0) {
     return (
