@@ -12,20 +12,37 @@ const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (user) {
+    if (!loading && user) {
       navigate("/");
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
+
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Already logged in, will redirect
+  if (user) {
+    return null;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       if (isLogin) {
@@ -57,7 +74,7 @@ const Auth = () => {
       }
       toast({ title: "Hata", description: message, variant: "destructive" });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -95,8 +112,8 @@ const Auth = () => {
                 placeholder="En az 6 karakter"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Yükleniyor..." : isLogin ? "Giriş Yap" : "Kayıt Ol"}
+            <Button type="submit" className="w-full" disabled={submitting}>
+              {submitting ? "Yükleniyor..." : isLogin ? "Giriş Yap" : "Kayıt Ol"}
             </Button>
           </form>
           <div className="mt-4 text-center">
