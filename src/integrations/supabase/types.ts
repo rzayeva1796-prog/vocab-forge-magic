@@ -115,6 +115,41 @@ export type Database = {
           },
         ]
       }
+      user_word_progress: {
+        Row: {
+          created_at: string
+          id: string
+          star_rating: number
+          updated_at: string
+          user_id: string
+          word_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          star_rating?: number
+          updated_at?: string
+          user_id: string
+          word_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          star_rating?: number
+          updated_at?: string
+          user_id?: string
+          word_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_word_progress_word_id_fkey"
+            columns: ["word_id"]
+            isOneToOne: false
+            referencedRelation: "learned_words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       word_packages: {
         Row: {
           created_at: string
