@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn } from "lucide-react";
+import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -77,6 +77,16 @@ const GameSelection = () => {
           >
             <GitCompare className="w-8 h-8 mr-3" />
             Eşleştirme
+          </Button>
+          
+          <Button
+            onClick={() => handleGameClick("https://star-reader-sync.lovable.app")}
+            className="w-full h-20 text-xl"
+            size="lg"
+            variant="ghost"
+          >
+            <BookOpen className="w-8 h-8 mr-3" />
+            Kitap
           </Button>
         </div>
       </div>
