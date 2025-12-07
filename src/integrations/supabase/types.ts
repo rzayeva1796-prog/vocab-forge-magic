@@ -142,6 +142,39 @@ export type Database = {
           },
         ]
       }
+      notification_settings: {
+        Row: {
+          created_at: string
+          id: string
+          last_notified_at: string | null
+          notification_sound: string | null
+          push_enabled: boolean | null
+          push_subscription: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_notified_at?: string | null
+          notification_sound?: string | null
+          push_enabled?: boolean | null
+          push_subscription?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_notified_at?: string | null
+          notification_sound?: string | null
+          push_enabled?: boolean | null
+          push_subscription?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -151,6 +184,9 @@ export type Database = {
           id: string
           kart_xp: number
           kitap_xp: number
+          last_activity_at: string | null
+          last_login_date: string | null
+          login_streak: number | null
           tetris_xp: number
           updated_at: string
           user_id: string
@@ -163,6 +199,9 @@ export type Database = {
           id?: string
           kart_xp?: number
           kitap_xp?: number
+          last_activity_at?: string | null
+          last_login_date?: string | null
+          login_streak?: number | null
           tetris_xp?: number
           updated_at?: string
           user_id: string
@@ -175,6 +214,9 @@ export type Database = {
           id?: string
           kart_xp?: number
           kitap_xp?: number
+          last_activity_at?: string | null
+          last_login_date?: string | null
+          login_streak?: number | null
           tetris_xp?: number
           updated_at?: string
           user_id?: string
