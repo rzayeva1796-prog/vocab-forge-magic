@@ -1,9 +1,13 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useServiceWorker } from './useServiceWorker';
+import { usePushSubscription } from './usePushSubscription';
 
 const NOTIFICATION_SOUND_KEY = 'notification_sound';
 const NOTIFICATION_ENABLED_KEY = 'notifications_enabled';
+const LAST_ACTIVITY_KEY = 'last_activity_timestamp';
+const LOGIN_STREAK_KEY = 'login_streak';
 
 // UTC+4 timezone check (10:00 - 22:00)
 const isWithinNotificationHours = () => {
@@ -15,6 +19,41 @@ const isWithinNotificationHours = () => {
 
 export const useNotifications = () => {
   const { user } = useAuth();
+  const [isInitialized, setIsInitialized] = useState(false);
+  
+  const { 
+    swRegistration, 
+    isSupported: swSupported,
+    updateLastActivity: updateLocalActivity,
+    checkPendingLocalNotifications,
+    showLocalNotification
+  } = useServiceWorker();
+  
+  const {
+    isSubscribed,
+    subscribeToPush,
+    unsubscribeFromPush,
+    checkSubscription
+  } = usePushSubscription();
+
+  // Initialize on mount - check for pending local notifications
+  useEffect(() => {
+    if (swSupported && !isInitialized) {
+      // Small delay to ensure SW is ready
+      const timer = setTimeout(() => {
+        checkPendingLocalNotifications();
+        setIsInitialized(true);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [swSupported, isInitialized, checkPendingLocalNotifications]);
+
+  // Check push subscription status when SW is ready
+  useEffect(() => {
+    if (swRegistration) {
+      checkSubscription(swRegistration);
+    }
+  }, [swRegistration, checkSubscription]);
 
   const requestPermission = async () => {
     if (!('Notification' in window)) {
@@ -37,23 +76,18 @@ export const useNotifications = () => {
   const saveNotificationPreference = async (enabled: boolean) => {
     localStorage.setItem(NOTIFICATION_ENABLED_KEY, JSON.stringify(enabled));
     
-    // Also save to database
-    if (user) {
-      const { data: existing } = await supabase
-        .from('notification_settings')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (existing) {
-        await supabase
-          .from('notification_settings')
-          .update({ push_enabled: enabled })
-          .eq('user_id', user.id);
+    if (user && swRegistration) {
+      if (enabled) {
+        // Subscribe to push notifications
+        await subscribeToPush(swRegistration, user.id);
+        
+        // Cache notification sound via service worker
+        if (swRegistration.active) {
+          swRegistration.active.postMessage({ type: 'CACHE_SOUND' });
+        }
       } else {
-        await supabase
-          .from('notification_settings')
-          .insert({ user_id: user.id, push_enabled: enabled });
+        // Unsubscribe from push notifications
+        await unsubscribeFromPush(user.id);
       }
     }
   };
@@ -111,6 +145,10 @@ export const useNotifications = () => {
   }, []);
 
   const updateLastActivity = async () => {
+    // Update local storage for offline notifications
+    updateLocalActivity();
+    localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+    
     if (!user) return;
 
     try {
@@ -246,6 +284,9 @@ export const useNotifications = () => {
     saveNotificationSound,
     getNotificationSound,
     playNotificationSound,
-    checkPendingNotifications
+    checkPendingNotifications,
+    showLocalNotification,
+    isSubscribed,
+    swSupported
   };
 };
