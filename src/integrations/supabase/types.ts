@@ -181,6 +181,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_leagues: {
+        Row: {
+          created_at: string
+          current_league: Database["public"]["Enums"]["league_type"]
+          id: string
+          period_start_date: string
+          period_xp: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_league?: Database["public"]["Enums"]["league_type"]
+          id?: string
+          period_start_date?: string
+          period_xp?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_league?: Database["public"]["Enums"]["league_type"]
+          id?: string
+          period_start_date?: string
+          period_xp?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_word_progress: {
         Row: {
           created_at: string
@@ -266,7 +296,17 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      league_type:
+        | "bronze"
+        | "silver"
+        | "gold"
+        | "platinum"
+        | "emerald"
+        | "diamond"
+        | "sapphire"
+        | "ruby"
+        | "obsidian"
+        | "titan"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -393,6 +433,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      league_type: [
+        "bronze",
+        "silver",
+        "gold",
+        "platinum",
+        "emerald",
+        "diamond",
+        "sapphire",
+        "ruby",
+        "obsidian",
+        "titan",
+      ],
+    },
   },
 } as const

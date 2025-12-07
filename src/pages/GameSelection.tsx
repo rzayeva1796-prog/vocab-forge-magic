@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen, User } from "lucide-react";
+import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen, User, Trophy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -44,6 +44,17 @@ const GameSelection = () => {
         <h1 className="text-4xl font-bold text-center text-primary mb-8">
           Choose Game
         </h1>
+
+        {user && (
+          <Button
+            onClick={() => navigate("/leaderboard")}
+            className="w-full h-16 text-lg bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700"
+            size="lg"
+          >
+            <Trophy className="w-6 h-6 mr-2" />
+            Leaderboard
+          </Button>
+        )}
 
         {!user && (
           <div className="text-center p-4 bg-secondary/50 rounded-lg mb-4">
