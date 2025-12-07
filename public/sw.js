@@ -147,7 +147,7 @@ async function checkDailyLoginAndNotify() {
 
 // Handle push events (for remote notifications like leaderboard changes)
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push received');
+  console.log('[SW] Push received:', event);
   
   let data = {
     title: 'Bildirim',
@@ -157,13 +157,25 @@ self.addEventListener('push', (event) => {
   if (event.data) {
     try {
       data = event.data.json();
+      console.log('[SW] Push data parsed:', data);
     } catch (e) {
+      console.log('[SW] Push data parse error, using text');
       data.body = event.data.text();
     }
   }
 
+  const options = {
+    body: data.body,
+    icon: data.icon || '/favicon.ico',
+    badge: data.badge || '/favicon.ico',
+    tag: data.tag || 'vocab-notification',
+    data: data.data || { url: '/' },
+    vibrate: [200, 100, 200],
+    requireInteraction: true
+  };
+
   event.waitUntil(
-    showNotification(data.title, data.body, data.tag, data)
+    self.registration.showNotification(data.title, options)
   );
 });
 

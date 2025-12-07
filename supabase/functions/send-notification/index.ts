@@ -6,6 +6,115 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Base64 URL encoding helpers
+function base64UrlEncode(data: Uint8Array): string {
+  const base64 = btoa(String.fromCharCode(...data));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function base64UrlDecode(str: string): Uint8Array {
+  const padding = '='.repeat((4 - str.length % 4) % 4);
+  const base64 = (str + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
+}
+
+// Create JWT for VAPID authentication
+async function createVapidJwt(audience: string, subject: string, privateKey: string): Promise<string> {
+  const header = { typ: 'JWT', alg: 'ES256' };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    aud: audience,
+    exp: now + 12 * 60 * 60, // 12 hours
+    sub: subject
+  };
+
+  const headerB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)));
+  const payloadB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
+  const unsignedToken = `${headerB64}.${payloadB64}`;
+
+  // Import the private key
+  const privateKeyBytes = base64UrlDecode(privateKey);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    privateKeyBytes.buffer as ArrayBuffer,
+    { name: 'ECDSA', namedCurve: 'P-256' },
+    false,
+    ['sign']
+  );
+
+  // Sign the token
+  const signature = await crypto.subtle.sign(
+    { name: 'ECDSA', hash: 'SHA-256' },
+    key,
+    new TextEncoder().encode(unsignedToken)
+  );
+
+  // Convert DER signature to raw format if needed
+  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
+  
+  return `${unsignedToken}.${signatureB64}`;
+}
+
+// Send Web Push notification
+async function sendWebPush(subscription: any, payload: string): Promise<{ success: boolean; error?: string }> {
+  const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
+  const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
+  
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    console.error('VAPID keys not configured');
+    return { success: false, error: 'VAPID keys not configured' };
+  }
+
+  try {
+    const endpoint = subscription.endpoint;
+    const p256dh = subscription.keys?.p256dh;
+    const auth = subscription.keys?.auth;
+
+    if (!endpoint || !p256dh || !auth) {
+      console.error('Invalid subscription format:', JSON.stringify(subscription));
+      return { success: false, error: 'Invalid subscription format' };
+    }
+
+    // Get the audience (origin) from the endpoint
+    const endpointUrl = new URL(endpoint);
+    const audience = endpointUrl.origin;
+
+    // Create VAPID JWT
+    const jwt = await createVapidJwt(audience, 'mailto:rzayev1796@gmail.com', vapidPrivateKey);
+    
+    // Create authorization header
+    const authorization = `vapid t=${jwt}, k=${vapidPublicKey}`;
+
+    // Send the push notification
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': authorization,
+        'Content-Type': 'application/octet-stream',
+        'Content-Encoding': 'aes128gcm',
+        'TTL': '86400',
+        'Urgency': 'high'
+      },
+      body: payload
+    });
+
+    console.log('Push response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Push failed:', response.status, errorText);
+      return { success: false, error: `Push failed: ${response.status} ${errorText}` };
+    }
+
+    console.log('Web push sent successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending web push:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -68,11 +177,23 @@ serve(async (req) => {
       .update({ last_notified_at: new Date().toISOString() })
       .eq('user_id', targetUserId);
 
-    // For Web Push, we would need VAPID keys and web-push library
-    // Since we don't have those set up, we'll store the notification in a pending notifications table
-    // and the client will poll for it
+    // Prepare notification payload
+    const notificationPayload = JSON.stringify({
+      title,
+      body,
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      tag: 'vocab-notification',
+      data: {
+        url: '/',
+        senderName
+      }
+    });
+
+    // Send Web Push notification
+    const pushResult = await sendWebPush(settings.push_subscription, notificationPayload);
     
-    // Store pending notification
+    // Also store in pending notifications as backup
     const { error: insertError } = await supabaseClient
       .from('pending_notifications')
       .insert({
@@ -86,13 +207,12 @@ serve(async (req) => {
 
     if (insertError) {
       console.error('Error storing notification:', insertError);
-      // If table doesn't exist, that's ok - we'll create it
     }
 
-    console.log('Notification stored successfully');
+    console.log('Notification processed. Push result:', pushResult);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Notification sent' }),
+      JSON.stringify({ success: true, pushSent: pushResult.success, pushError: pushResult.error, message: 'Notification sent' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
