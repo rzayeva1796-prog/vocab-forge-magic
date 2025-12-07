@@ -186,9 +186,17 @@ export const useNotifications = () => {
       }
 
       if (notifications && notifications.length > 0) {
-        // Show each notification
+        console.log(`Found ${notifications.length} pending notifications`);
+        
+        // Show each notification via Service Worker for better visibility
         for (const notif of notifications) {
-          sendNotification(notif.title, notif.body);
+          // Use Service Worker notification if available (works even when tab is in background)
+          if (swRegistration?.active) {
+            showLocalNotification(notif.title, notif.body, `pending-${notif.id}`);
+          } else {
+            // Fallback to regular notification
+            sendNotification(notif.title, notif.body);
+          }
           
           // Mark as read
           await supabase
@@ -200,7 +208,7 @@ export const useNotifications = () => {
     } catch (error) {
       console.error('Error checking pending notifications:', error);
     }
-  }, [user, sendNotification]);
+  }, [user, sendNotification, swRegistration, showLocalNotification]);
 
   // Poll for pending notifications every 10 seconds
   useEffect(() => {
