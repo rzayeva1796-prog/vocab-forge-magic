@@ -1,62 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import webpush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Base64 URL encoding helpers
-function base64UrlEncode(data: Uint8Array): string {
-  const base64 = btoa(String.fromCharCode(...data));
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function base64UrlDecode(str: string): Uint8Array {
-  const padding = '='.repeat((4 - str.length % 4) % 4);
-  const base64 = (str + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = atob(base64);
-  return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
-}
-
-// Create JWT for VAPID authentication
-async function createVapidJwt(audience: string, subject: string, privateKey: string): Promise<string> {
-  const header = { typ: 'JWT', alg: 'ES256' };
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    aud: audience,
-    exp: now + 12 * 60 * 60, // 12 hours
-    sub: subject
-  };
-
-  const headerB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(header)));
-  const payloadB64 = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
-  const unsignedToken = `${headerB64}.${payloadB64}`;
-
-  // Import the private key
-  const privateKeyBytes = base64UrlDecode(privateKey);
-  const key = await crypto.subtle.importKey(
-    'raw',
-    privateKeyBytes.buffer as ArrayBuffer,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false,
-    ['sign']
-  );
-
-  // Sign the token
-  const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    key,
-    new TextEncoder().encode(unsignedToken)
-  );
-
-  // Convert DER signature to raw format if needed
-  const signatureB64 = base64UrlEncode(new Uint8Array(signature));
-  
-  return `${unsignedToken}.${signatureB64}`;
-}
-
-// Send Web Push notification
+// Send Web Push notification using web-push library
 async function sendWebPush(subscription: any, payload: string): Promise<{ success: boolean; error?: string }> {
   const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
   const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
@@ -65,6 +16,9 @@ async function sendWebPush(subscription: any, payload: string): Promise<{ succes
     console.error('VAPID keys not configured');
     return { success: false, error: 'VAPID keys not configured' };
   }
+
+  console.log('VAPID Public Key length:', vapidPublicKey.length);
+  console.log('VAPID Private Key length:', vapidPrivateKey.length);
 
   try {
     const endpoint = subscription.endpoint;
@@ -76,42 +30,22 @@ async function sendWebPush(subscription: any, payload: string): Promise<{ succes
       return { success: false, error: 'Invalid subscription format' };
     }
 
-    // Get the audience (origin) from the endpoint
-    const endpointUrl = new URL(endpoint);
-    const audience = endpointUrl.origin;
+    console.log('Setting VAPID details...');
+    webpush.setVapidDetails(
+      'mailto:rzayev1796@gmail.com',
+      vapidPublicKey,
+      vapidPrivateKey
+    );
 
-    // Create VAPID JWT
-    const jwt = await createVapidJwt(audience, 'mailto:rzayev1796@gmail.com', vapidPrivateKey);
+    console.log('Sending notification to endpoint:', endpoint.substring(0, 50) + '...');
     
-    // Create authorization header
-    const authorization = `vapid t=${jwt}, k=${vapidPublicKey}`;
-
-    // Send the push notification
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': authorization,
-        'Content-Type': 'application/octet-stream',
-        'Content-Encoding': 'aes128gcm',
-        'TTL': '86400',
-        'Urgency': 'high'
-      },
-      body: payload
-    });
-
-    console.log('Push response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Push failed:', response.status, errorText);
-      return { success: false, error: `Push failed: ${response.status} ${errorText}` };
-    }
-
-    console.log('Web push sent successfully');
+    const result = await webpush.sendNotification(subscription, payload);
+    console.log('Web push sent successfully, status:', result.statusCode);
     return { success: true };
-  } catch (error) {
-    console.error('Error sending web push:', error);
-    return { success: false, error: String(error) };
+  } catch (error: any) {
+    console.error('Error sending web push:', error.message || error);
+    console.error('Error stack:', error.stack);
+    return { success: false, error: String(error.message || error) };
   }
 }
 
@@ -129,7 +63,8 @@ serve(async (req) => {
 
     const { targetUserId, title, body, senderName } = await req.json();
 
-    console.log('Sending notification to user:', targetUserId);
+    console.log('=== NOTIFICATION REQUEST ===');
+    console.log('Target User ID:', targetUserId);
     console.log('Title:', title);
     console.log('Body:', body);
 
@@ -154,6 +89,10 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('User settings found:', !!settings);
+    console.log('Push enabled:', settings?.push_enabled);
+    console.log('Has subscription:', !!settings?.push_subscription);
 
     if (!settings || !settings.push_enabled) {
       console.log('User has notifications disabled or no settings found');
@@ -183,16 +122,20 @@ serve(async (req) => {
       body,
       icon: '/favicon.ico',
       badge: '/favicon.ico',
-      tag: 'vocab-notification',
+      tag: 'vocab-notification-' + Date.now(),
       data: {
         url: '/',
         senderName
       }
     });
 
+    console.log('Sending push notification...');
+    
     // Send Web Push notification
     const pushResult = await sendWebPush(settings.push_subscription, notificationPayload);
     
+    console.log('Push result:', pushResult);
+
     // Also store in pending notifications as backup
     const { error: insertError } = await supabaseClient
       .from('pending_notifications')
@@ -206,13 +149,18 @@ serve(async (req) => {
       });
 
     if (insertError) {
-      console.error('Error storing notification:', insertError);
+      console.error('Error storing pending notification:', insertError);
     }
 
-    console.log('Notification processed. Push result:', pushResult);
+    console.log('=== NOTIFICATION COMPLETE ===');
 
     return new Response(
-      JSON.stringify({ success: true, pushSent: pushResult.success, pushError: pushResult.error, message: 'Notification sent' }),
+      JSON.stringify({ 
+        success: true, 
+        pushSent: pushResult.success, 
+        pushError: pushResult.error, 
+        message: pushResult.success ? 'Push notification sent' : 'Push failed, stored as pending' 
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
