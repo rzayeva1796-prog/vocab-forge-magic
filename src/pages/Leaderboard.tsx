@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap } from "lucide-react";
+import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -22,64 +22,86 @@ const LEAGUES = [
   { id: 'titan', name: 'Titan League', color: 'from-purple-500 to-purple-700', minXp: 54000, maxXp: 60000 },
 ];
 
-const BOT_NAMES = [
-  "Ahmet", "Mehmet", "Ayşe", "Fatma", "Mustafa", "Ali", "Zeynep", "Elif", "Hüseyin", "Hasan",
-  "Emre", "Can", "Deniz", "Ece", "Selin", "Burak", "Kaan", "Berk", "Ceren", "Dilara",
-  "Emir", "Yusuf", "Ömer", "İrem", "Defne", "Ada", "Mert", "Arda", "Kerem", "Derin",
-  "Asya", "Ela", "Lina", "Mira", "Nisa", "Pelin", "Sude", "Tuana", "Yağmur", "Zehra",
-  "Barış", "Cem", "Doruk", "Eren", "Furkan", "Gökhan", "Halil", "İlker", "Kaya", "Levent"
+// Male names
+const MALE_NAMES = [
+  "Ahmet", "Mehmet", "Mustafa", "Ali", "Hüseyin", "Hasan", "Emre", "Can", "Burak", "Kaan",
+  "Berk", "Emir", "Yusuf", "Ömer", "Mert", "Arda", "Kerem", "Barış", "Cem", "Doruk",
+  "Eren", "Furkan", "Gökhan", "Halil", "İlker", "Kaya", "Levent", "Oğuz", "Onur", "Serkan"
 ];
 
-// Bot avatar URLs - 50 unique realistic profile pictures
-const BOT_AVATARS = [
+// Female names
+const FEMALE_NAMES = [
+  "Ayşe", "Fatma", "Zeynep", "Elif", "Ece", "Selin", "Ceren", "Dilara", "İrem", "Defne",
+  "Ada", "Derin", "Asya", "Ela", "Lina", "Mira", "Nisa", "Pelin", "Sude", "Tuana",
+  "Yağmur", "Zehra", "Deniz", "Melis", "Beyza", "Büşra", "Damla", "Esra", "Gül", "Hazal"
+];
+
+// Male avatar URLs
+const MALE_AVATARS = [
   "https://randomuser.me/api/portraits/men/1.jpg",
-  "https://randomuser.me/api/portraits/women/1.jpg",
   "https://randomuser.me/api/portraits/men/2.jpg",
-  "https://randomuser.me/api/portraits/women/2.jpg",
   "https://randomuser.me/api/portraits/men/3.jpg",
-  "https://randomuser.me/api/portraits/women/3.jpg",
   "https://randomuser.me/api/portraits/men/4.jpg",
-  "https://randomuser.me/api/portraits/women/4.jpg",
   "https://randomuser.me/api/portraits/men/5.jpg",
-  "https://randomuser.me/api/portraits/women/5.jpg",
   "https://randomuser.me/api/portraits/men/11.jpg",
-  "https://randomuser.me/api/portraits/women/11.jpg",
   "https://randomuser.me/api/portraits/men/12.jpg",
-  "https://randomuser.me/api/portraits/women/12.jpg",
   "https://randomuser.me/api/portraits/men/13.jpg",
-  "https://randomuser.me/api/portraits/women/13.jpg",
   "https://randomuser.me/api/portraits/men/14.jpg",
-  "https://randomuser.me/api/portraits/women/14.jpg",
   "https://randomuser.me/api/portraits/men/15.jpg",
-  "https://randomuser.me/api/portraits/women/15.jpg",
   "https://randomuser.me/api/portraits/men/21.jpg",
-  "https://randomuser.me/api/portraits/women/21.jpg",
   "https://randomuser.me/api/portraits/men/22.jpg",
-  "https://randomuser.me/api/portraits/women/22.jpg",
   "https://randomuser.me/api/portraits/men/23.jpg",
-  "https://randomuser.me/api/portraits/women/23.jpg",
   "https://randomuser.me/api/portraits/men/24.jpg",
-  "https://randomuser.me/api/portraits/women/24.jpg",
   "https://randomuser.me/api/portraits/men/25.jpg",
-  "https://randomuser.me/api/portraits/women/25.jpg",
   "https://randomuser.me/api/portraits/men/31.jpg",
-  "https://randomuser.me/api/portraits/women/31.jpg",
   "https://randomuser.me/api/portraits/men/32.jpg",
-  "https://randomuser.me/api/portraits/women/32.jpg",
   "https://randomuser.me/api/portraits/men/33.jpg",
-  "https://randomuser.me/api/portraits/women/33.jpg",
   "https://randomuser.me/api/portraits/men/34.jpg",
-  "https://randomuser.me/api/portraits/women/34.jpg",
   "https://randomuser.me/api/portraits/men/35.jpg",
-  "https://randomuser.me/api/portraits/women/35.jpg",
   "https://randomuser.me/api/portraits/men/41.jpg",
-  "https://randomuser.me/api/portraits/women/41.jpg",
   "https://randomuser.me/api/portraits/men/42.jpg",
-  "https://randomuser.me/api/portraits/women/42.jpg",
   "https://randomuser.me/api/portraits/men/43.jpg",
-  "https://randomuser.me/api/portraits/women/43.jpg",
   "https://randomuser.me/api/portraits/men/44.jpg",
+  "https://randomuser.me/api/portraits/men/45.jpg",
+  "https://randomuser.me/api/portraits/men/51.jpg",
+  "https://randomuser.me/api/portraits/men/52.jpg",
+  "https://randomuser.me/api/portraits/men/53.jpg",
+  "https://randomuser.me/api/portraits/men/54.jpg",
+  "https://randomuser.me/api/portraits/men/55.jpg",
+];
+
+// Female avatar URLs
+const FEMALE_AVATARS = [
+  "https://randomuser.me/api/portraits/women/1.jpg",
+  "https://randomuser.me/api/portraits/women/2.jpg",
+  "https://randomuser.me/api/portraits/women/3.jpg",
+  "https://randomuser.me/api/portraits/women/4.jpg",
+  "https://randomuser.me/api/portraits/women/5.jpg",
+  "https://randomuser.me/api/portraits/women/11.jpg",
+  "https://randomuser.me/api/portraits/women/12.jpg",
+  "https://randomuser.me/api/portraits/women/13.jpg",
+  "https://randomuser.me/api/portraits/women/14.jpg",
+  "https://randomuser.me/api/portraits/women/15.jpg",
+  "https://randomuser.me/api/portraits/women/21.jpg",
+  "https://randomuser.me/api/portraits/women/22.jpg",
+  "https://randomuser.me/api/portraits/women/23.jpg",
+  "https://randomuser.me/api/portraits/women/24.jpg",
+  "https://randomuser.me/api/portraits/women/25.jpg",
+  "https://randomuser.me/api/portraits/women/31.jpg",
+  "https://randomuser.me/api/portraits/women/32.jpg",
+  "https://randomuser.me/api/portraits/women/33.jpg",
+  "https://randomuser.me/api/portraits/women/34.jpg",
+  "https://randomuser.me/api/portraits/women/35.jpg",
+  "https://randomuser.me/api/portraits/women/41.jpg",
+  "https://randomuser.me/api/portraits/women/42.jpg",
+  "https://randomuser.me/api/portraits/women/43.jpg",
   "https://randomuser.me/api/portraits/women/44.jpg",
+  "https://randomuser.me/api/portraits/women/45.jpg",
+  "https://randomuser.me/api/portraits/women/51.jpg",
+  "https://randomuser.me/api/portraits/women/52.jpg",
+  "https://randomuser.me/api/portraits/women/53.jpg",
+  "https://randomuser.me/api/portraits/women/54.jpg",
+  "https://randomuser.me/api/portraits/women/55.jpg",
 ];
 
 interface LeaderboardEntry {
@@ -95,6 +117,7 @@ interface LeaderboardEntry {
   kart_xp?: number;
   eslestirme_xp?: number;
   kitap_xp?: number;
+  friendUserId?: string;
 }
 
 // Global seed for consistent bots across all users
@@ -331,13 +354,18 @@ const Leaderboard = () => {
     const bots: LeaderboardEntry[] = [];
     
     for (let i = 0; i < botsNeeded; i++) {
-      // Get bot name based on seed
-      const nameIndex = Math.floor(seededRandom(i) * BOT_NAMES.length);
-      const name = BOT_NAMES[nameIndex];
+      // Determine gender based on seed (consistent per bot index)
+      const isMale = seededRandom(i, 500) > 0.5;
       
-      // Get bot avatar
-      const avatarIndex = Math.floor(seededRandom(i, 100) * BOT_AVATARS.length);
-      const avatar = BOT_AVATARS[avatarIndex];
+      // Get bot name based on gender
+      const names = isMale ? MALE_NAMES : FEMALE_NAMES;
+      const nameIndex = Math.floor(seededRandom(i) * names.length);
+      const name = names[nameIndex];
+      
+      // Get bot avatar based on gender (unique per bot)
+      const avatars = isMale ? MALE_AVATARS : FEMALE_AVATARS;
+      const avatarIndex = i % avatars.length; // Ensures unique avatars
+      const avatar = avatars[avatarIndex];
       
       // Calculate bot XP with variations
       const botIndex = i;
@@ -405,7 +433,8 @@ const Leaderboard = () => {
         tetris_xp: friend.tetris_xp,
         kart_xp: friend.kart_xp,
         eslestirme_xp: friend.eslestirme_xp,
-        kitap_xp: friend.kitap_xp
+        kitap_xp: friend.kitap_xp,
+        friendUserId: friend.user_id
       });
     });
     
@@ -438,6 +467,22 @@ const Leaderboard = () => {
     if (entry.isFriend) {
       setSelectedFriend(entry);
       setCompareDialogOpen(true);
+    }
+  };
+
+  // Send notification to friend
+  const handleSendFriendNotification = (e: React.MouseEvent, entry: LeaderboardEntry) => {
+    e.stopPropagation(); // Prevent dialog opening
+    if (entry.friendUserId) {
+      // For testing: send a browser notification to show it works
+      sendNotification(
+        'Arkadaşın seni çağırıyor! 🎮',
+        `${userProfile?.display_name || 'Arkadaşın'} diyor: Gel başlayalım!`
+      );
+      toast({
+        title: "Bildirim Gönderildi! 🔔",
+        description: `${entry.name}'e bildirim gönderildi: "Gel başlayalım!"`,
+      });
     }
   };
 
@@ -601,6 +646,19 @@ const Leaderboard = () => {
                   </p>
                 )}
               </div>
+              
+              {/* Friend notification button */}
+              {entry.isFriend && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 hover:bg-primary/20"
+                  onClick={(e) => handleSendFriendNotification(e, entry)}
+                  title="Bildirim gönder"
+                >
+                  <Send className="h-4 w-4 text-primary" />
+                </Button>
+              )}
               
               <div className="flex items-center gap-2">
                 <span className="font-bold">{entry.xp.toLocaleString()} XP</span>
