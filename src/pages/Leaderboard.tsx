@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/useNotifications";
-
 const LEAGUES = [
   { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
   { id: 'silver', name: 'Silver League', color: 'from-gray-400 to-gray-600', minXp: 6000, maxXp: 12000 },
@@ -89,12 +89,21 @@ interface LeaderboardEntry {
   xp: number;
   isBot: boolean;
   isCurrentUser: boolean;
+  isFriend?: boolean;
+  login_streak?: number;
+  tetris_xp?: number;
+  kart_xp?: number;
+  eslestirme_xp?: number;
+  kitap_xp?: number;
 }
+
+// Global seed for consistent bots across all users
+const GLOBAL_BOT_SEED = 1733600000000; // Fixed seed for all users
 
 const Leaderboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { notifyLeaderboardChange } = useNotifications();
+  const { notifyLeaderboardChange, sendNotification, getNotificationPreference } = useNotifications();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
   const [periodStart, setPeriodStart] = useState<Date>(new Date());
@@ -104,6 +113,8 @@ const Leaderboard = () => {
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const previousPositionRef = useRef<number | null>(null);
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  const [selectedFriend, setSelectedFriend] = useState<LeaderboardEntry | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -210,14 +221,25 @@ const Leaderboard = () => {
             .select('user_id, display_name, avatar_url')
             .in('user_id', friendIds);
 
+          // Get full friend profiles with XP details
+          const { data: fullFriendProfiles } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, avatar_url, login_streak, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
+            .in('user_id', friendIds);
+
           const friendsInLeague = (friendLeagues || [])
             .filter(fl => fl.current_league === (leagueData?.current_league || 'bronze'))
             .map(fl => {
-              const profile = friendProfiles?.find(p => p.user_id === fl.user_id);
+              const profile = fullFriendProfiles?.find(p => p.user_id === fl.user_id);
               return {
                 ...fl,
                 display_name: profile?.display_name,
-                avatar_url: profile?.avatar_url
+                avatar_url: profile?.avatar_url,
+                login_streak: profile?.login_streak,
+                tetris_xp: profile?.tetris_xp,
+                kart_xp: profile?.kart_xp,
+                eslestirme_xp: profile?.eslestirme_xp,
+                kitap_xp: profile?.kitap_xp
               };
             });
 
@@ -290,7 +312,7 @@ const Leaderboard = () => {
     }
   };
 
-  // Generate bots for the league with seeded random for consistency
+  // Generate bots for the league with global seed for consistency across ALL users
   const generateBots = useMemo(() => {
     const league = userLeague;
     const hoursElapsed = Math.min(72, Math.floor((simulatedTime.getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
@@ -299,8 +321,8 @@ const Leaderboard = () => {
     const realUsersCount = 1 + friends.length;
     const botsNeeded = Math.max(0, 10 - realUsersCount);
     
-    // Use seeded random for consistent bot generation
-    const seed = periodStart.getTime();
+    // Use GLOBAL seed for consistent bot generation across ALL users
+    const seed = GLOBAL_BOT_SEED + (userLeague.id.charCodeAt(0) * 1000); // Same bots per league
     const seededRandom = (index: number, offset: number = 0) => {
       const x = Math.sin(seed + index * 1000 + offset) * 10000;
       return x - Math.floor(x);
@@ -369,7 +391,7 @@ const Leaderboard = () => {
       });
     }
     
-    // Add friends
+    // Add friends with full XP details
     friends.forEach(friend => {
       entries.push({
         id: friend.user_id,
@@ -377,7 +399,13 @@ const Leaderboard = () => {
         avatar_url: friend.avatar_url,
         xp: friend.period_xp || 0,
         isBot: false,
-        isCurrentUser: false
+        isCurrentUser: false,
+        isFriend: true,
+        login_streak: friend.login_streak,
+        tetris_xp: friend.tetris_xp,
+        kart_xp: friend.kart_xp,
+        eslestirme_xp: friend.eslestirme_xp,
+        kitap_xp: friend.kitap_xp
       });
     });
     
@@ -387,19 +415,31 @@ const Leaderboard = () => {
     // Sort by XP descending
     entries.sort((a, b) => b.xp - a.xp);
     
-    // Check for position change and notify
+    // Check for position change and notify immediately when detected
     const currentPosition = entries.findIndex(e => e.isCurrentUser) + 1;
     if (previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
       // User dropped in position - someone passed them
       const passer = entries[currentPosition - 2]; // The one who passed
-      if (passer) {
-        notifyLeaderboardChange(passer.name);
+      if (passer && getNotificationPreference()) {
+        // Send notification immediately
+        sendNotification(
+          'Sıralaman değişti! 📊',
+          `${passer.name} seni geçti! Gel XP kazan ve sıralamana geri dön!`
+        );
       }
     }
     previousPositionRef.current = currentPosition;
     
     return entries;
-  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, notifyLeaderboardChange]);
+  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, sendNotification, getNotificationPreference]);
+
+  // Handle friend click for comparison
+  const handleFriendClick = (entry: LeaderboardEntry) => {
+    if (entry.isFriend) {
+      setSelectedFriend(entry);
+      setCompareDialogOpen(true);
+    }
+  };
 
   const getPositionIcon = (position: number) => {
     if (position <= 4) return <TrendingUp className="h-4 w-4 text-green-500" />;
@@ -532,7 +572,8 @@ const Leaderboard = () => {
         {leaderboardEntries.map((entry, index) => (
           <Card 
             key={entry.id} 
-            className={`border ${getPositionStyle(index + 1)} ${entry.isCurrentUser ? 'ring-2 ring-primary' : ''}`}
+            className={`border ${getPositionStyle(index + 1)} ${entry.isCurrentUser ? 'ring-2 ring-primary' : ''} ${entry.isFriend ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
+            onClick={() => handleFriendClick(entry)}
           >
             <CardContent className="p-3 flex items-center gap-3">
               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted font-bold">
@@ -554,8 +595,10 @@ const Leaderboard = () => {
                 <p className={`font-medium ${entry.isCurrentUser ? 'text-primary' : ''}`}>
                   {entry.name} {entry.isCurrentUser && '(Sen)'}
                 </p>
-                {entry.isBot && (
-                  <p className="text-xs text-muted-foreground">Bot</p>
+                {entry.isFriend && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Users className="h-3 w-3" /> Arkadaş
+                  </p>
                 )}
               </div>
               
@@ -568,29 +611,104 @@ const Leaderboard = () => {
         ))}
       </div>
 
-      {/* All Leagues */}
-      <Card className="mt-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Tüm Ligler</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-2">
-            {LEAGUES.map((league, index) => (
-              <div 
-                key={league.id}
-                className={`p-3 rounded-lg bg-gradient-to-r ${league.color} text-white text-sm ${
-                  league.id === userLeague.id ? 'ring-2 ring-white' : 'opacity-70'
-                }`}
-              >
-                <div className="font-medium">{league.name}</div>
-                <div className="text-xs opacity-80">
-                  {league.minXp.toLocaleString()} - {league.maxXp.toLocaleString()} XP/gün
+      {/* Friend Comparison Dialog */}
+      <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Karşılaştırma
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedFriend && userProfile && (
+            <div className="space-y-4">
+              {/* Avatars and Names */}
+              <div className="flex justify-around items-center">
+                <div className="text-center">
+                  <Avatar className="h-16 w-16 mx-auto mb-2">
+                    <AvatarImage src={userProfile.avatar_url || undefined} />
+                    <AvatarFallback className="bg-primary/20">
+                      {(userProfile.display_name || 'Sen').slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="font-medium text-primary">{userProfile.display_name || 'Sen'}</p>
+                </div>
+                <div className="text-2xl font-bold text-muted-foreground">VS</div>
+                <div className="text-center">
+                  <Avatar className="h-16 w-16 mx-auto mb-2">
+                    <AvatarImage src={selectedFriend.avatar_url || undefined} />
+                    <AvatarFallback className="bg-secondary/20">
+                      {selectedFriend.name.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <p className="font-medium">{selectedFriend.name}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
+              {/* Stats Comparison */}
+              <div className="space-y-3">
+                {/* Total XP */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userPeriodXp.toLocaleString()}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Zap className="h-4 w-4" />
+                    <span className="text-sm">Toplam XP</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.xp.toLocaleString()}</span>
+                </div>
+
+                {/* Login Streak */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userProfile.login_streak || 0}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Flame className="h-4 w-4" />
+                    <span className="text-sm">Giriş Serisi</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.login_streak || 0}</span>
+                </div>
+
+                {/* Game XP Breakdown */}
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userProfile.tetris_xp || 0}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Gamepad2 className="h-4 w-4" />
+                    <span className="text-sm">Tetris XP</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.tetris_xp || 0}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userProfile.kart_xp || 0}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Layers className="h-4 w-4" />
+                    <span className="text-sm">Kart XP</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.kart_xp || 0}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userProfile.eslestirme_xp || 0}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm">Eşleştirme XP</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.eslestirme_xp || 0}</span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <span className="font-bold text-primary">{userProfile.kitap_xp || 0}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <BookOpen className="h-4 w-4" />
+                    <span className="text-sm">Kitap XP</span>
+                  </div>
+                  <span className="font-bold">{selectedFriend.kitap_xp || 0}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
