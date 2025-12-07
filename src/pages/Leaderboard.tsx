@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,7 @@ import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell }
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useNotifications } from "@/hooks/useNotifications";
 
 const LEAGUES = [
   { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
@@ -29,7 +30,7 @@ const BOT_NAMES = [
   "Barış", "Cem", "Doruk", "Eren", "Furkan", "Gökhan", "Halil", "İlker", "Kaya", "Levent"
 ];
 
-// Bot avatar URLs - realistic profile pictures
+// Bot avatar URLs - 50 unique realistic profile pictures
 const BOT_AVATARS = [
   "https://randomuser.me/api/portraits/men/1.jpg",
   "https://randomuser.me/api/portraits/women/1.jpg",
@@ -41,6 +42,44 @@ const BOT_AVATARS = [
   "https://randomuser.me/api/portraits/women/4.jpg",
   "https://randomuser.me/api/portraits/men/5.jpg",
   "https://randomuser.me/api/portraits/women/5.jpg",
+  "https://randomuser.me/api/portraits/men/11.jpg",
+  "https://randomuser.me/api/portraits/women/11.jpg",
+  "https://randomuser.me/api/portraits/men/12.jpg",
+  "https://randomuser.me/api/portraits/women/12.jpg",
+  "https://randomuser.me/api/portraits/men/13.jpg",
+  "https://randomuser.me/api/portraits/women/13.jpg",
+  "https://randomuser.me/api/portraits/men/14.jpg",
+  "https://randomuser.me/api/portraits/women/14.jpg",
+  "https://randomuser.me/api/portraits/men/15.jpg",
+  "https://randomuser.me/api/portraits/women/15.jpg",
+  "https://randomuser.me/api/portraits/men/21.jpg",
+  "https://randomuser.me/api/portraits/women/21.jpg",
+  "https://randomuser.me/api/portraits/men/22.jpg",
+  "https://randomuser.me/api/portraits/women/22.jpg",
+  "https://randomuser.me/api/portraits/men/23.jpg",
+  "https://randomuser.me/api/portraits/women/23.jpg",
+  "https://randomuser.me/api/portraits/men/24.jpg",
+  "https://randomuser.me/api/portraits/women/24.jpg",
+  "https://randomuser.me/api/portraits/men/25.jpg",
+  "https://randomuser.me/api/portraits/women/25.jpg",
+  "https://randomuser.me/api/portraits/men/31.jpg",
+  "https://randomuser.me/api/portraits/women/31.jpg",
+  "https://randomuser.me/api/portraits/men/32.jpg",
+  "https://randomuser.me/api/portraits/women/32.jpg",
+  "https://randomuser.me/api/portraits/men/33.jpg",
+  "https://randomuser.me/api/portraits/women/33.jpg",
+  "https://randomuser.me/api/portraits/men/34.jpg",
+  "https://randomuser.me/api/portraits/women/34.jpg",
+  "https://randomuser.me/api/portraits/men/35.jpg",
+  "https://randomuser.me/api/portraits/women/35.jpg",
+  "https://randomuser.me/api/portraits/men/41.jpg",
+  "https://randomuser.me/api/portraits/women/41.jpg",
+  "https://randomuser.me/api/portraits/men/42.jpg",
+  "https://randomuser.me/api/portraits/women/42.jpg",
+  "https://randomuser.me/api/portraits/men/43.jpg",
+  "https://randomuser.me/api/portraits/women/43.jpg",
+  "https://randomuser.me/api/portraits/men/44.jpg",
+  "https://randomuser.me/api/portraits/women/44.jpg",
 ];
 
 interface LeaderboardEntry {
@@ -55,6 +94,7 @@ interface LeaderboardEntry {
 const Leaderboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { notifyLeaderboardChange } = useNotifications();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
   const [periodStart, setPeriodStart] = useState<Date>(new Date());
@@ -63,6 +103,7 @@ const Leaderboard = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [friends, setFriends] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const previousPositionRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -193,18 +234,35 @@ const Leaderboard = () => {
   };
 
   const handlePeriodEnd = async (leagueData: any) => {
-    // This would calculate final position and update league
-    // For now, just reset the period
+    if (!user) return;
+    
+    // Reset period XP in user_leagues
     await supabase
       .from('user_leagues')
       .update({
         period_xp: 0,
         period_start_date: new Date().toISOString()
       })
-      .eq('user_id', user?.id);
+      .eq('user_id', user.id);
+    
+    // Also reset profile XP values
+    await supabase
+      .from('profiles')
+      .update({
+        tetris_xp: 0,
+        kart_xp: 0,
+        eslestirme_xp: 0,
+        kitap_xp: 0
+      })
+      .eq('user_id', user.id);
     
     setUserPeriodXp(0);
     setPeriodStart(new Date());
+    
+    toast({
+      title: "⏰ Periyot Sıfırlandı",
+      description: "3 günlük periyot tamamlandı. XP sıfırlandı!",
+    });
   };
 
   // Simulated time for testing
@@ -329,8 +387,19 @@ const Leaderboard = () => {
     // Sort by XP descending
     entries.sort((a, b) => b.xp - a.xp);
     
+    // Check for position change and notify
+    const currentPosition = entries.findIndex(e => e.isCurrentUser) + 1;
+    if (previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
+      // User dropped in position - someone passed them
+      const passer = entries[currentPosition - 2]; // The one who passed
+      if (passer) {
+        notifyLeaderboardChange(passer.name);
+      }
+    }
+    previousPositionRef.current = currentPosition;
+    
     return entries;
-  }, [userProfile, userPeriodXp, friends, generateBots, user?.id]);
+  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, notifyLeaderboardChange]);
 
   const getPositionIcon = (position: number) => {
     if (position <= 4) return <TrendingUp className="h-4 w-4 text-green-500" />;

@@ -2,13 +2,16 @@ import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2 } from "lucide-react";
+import { ArrowLeft, Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2, Flame, Bell, BellOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useDailyLogin } from "@/hooks/useDailyLogin";
+import { useNotifications } from "@/hooks/useNotifications";
+import { Switch } from "@/components/ui/switch";
 
 interface Profile {
   id: string;
@@ -19,6 +22,8 @@ interface Profile {
   kart_xp: number;
   eslestirme_xp: number;
   kitap_xp: number;
+  login_streak?: number;
+  last_login_date?: string;
 }
 
 interface Friendship {
@@ -33,6 +38,13 @@ interface Friendship {
 const Profile = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
+  const { checkAndUpdateDailyLogin } = useDailyLogin();
+  const { 
+    requestPermission, 
+    saveNotificationPreference, 
+    getNotificationPreference,
+    updateLastActivity 
+  } = useNotifications();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingName, setEditingName] = useState(false);
@@ -41,6 +53,7 @@ const Profile = () => {
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -52,8 +65,35 @@ const Profile = () => {
     if (user) {
       loadProfile();
       loadFriendships();
+      handleDailyLogin();
+      updateLastActivity();
+      setNotificationsEnabled(getNotificationPreference());
     }
   }, [user, authLoading]);
+
+  const handleDailyLogin = async () => {
+    const result = await checkAndUpdateDailyLogin();
+    if (result?.isNewDay) {
+      toast.success(`🔥 ${result.streak} günlük seri!`);
+    }
+  };
+
+  const toggleNotifications = async () => {
+    if (!notificationsEnabled) {
+      const granted = await requestPermission();
+      if (granted) {
+        setNotificationsEnabled(true);
+        saveNotificationPreference(true);
+        toast.success('Bildirimler açıldı');
+      } else {
+        toast.error('Bildirim izni reddedildi');
+      }
+    } else {
+      setNotificationsEnabled(false);
+      saveNotificationPreference(false);
+      toast.success('Bildirimler kapatıldı');
+    }
+  };
 
   const loadProfile = async () => {
     if (!user) return;
@@ -379,6 +419,32 @@ const Profile = () => {
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* Login Streak & Notifications */}
+            <div className="flex gap-3">
+              <div className="flex-1 text-center p-3 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <Flame className="w-5 h-5 text-orange-500" />
+                  <span className="text-sm text-muted-foreground">Günlük Seri</span>
+                </div>
+                <p className="text-2xl font-bold text-orange-500">{profile.login_streak || 0} gün</p>
+              </div>
+              <div className="flex-1 text-center p-3 bg-secondary/30 rounded-lg">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  {notificationsEnabled ? (
+                    <Bell className="w-5 h-5 text-primary" />
+                  ) : (
+                    <BellOff className="w-5 h-5 text-muted-foreground" />
+                  )}
+                  <span className="text-sm text-muted-foreground">Bildirim</span>
+                </div>
+                <Switch 
+                  checked={notificationsEnabled} 
+                  onCheckedChange={toggleNotifications}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+
             {/* Total XP */}
             <div className="text-center p-4 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg">
               <div className="flex items-center justify-center gap-2 mb-2">
@@ -474,6 +540,15 @@ const Profile = () => {
                             </DialogTitle>
                           </DialogHeader>
                           <div className="space-y-4 mt-4">
+                            {/* Login Streak */}
+                            <div className="text-center p-3 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg">
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <Flame className="w-5 h-5 text-orange-500" />
+                                <span className="text-sm text-muted-foreground">Günlük Seri</span>
+                              </div>
+                              <p className="text-2xl font-bold text-orange-500">{(friendProfile as any).login_streak || 0} gün</p>
+                            </div>
+                            
                             <div className="text-center p-4 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg">
                               <div className="flex items-center justify-center gap-2 mb-2">
                                 <Trophy className="w-5 h-5 text-yellow-500" />
