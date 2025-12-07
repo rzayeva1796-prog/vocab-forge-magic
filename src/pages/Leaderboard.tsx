@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useServiceWorker } from "@/hooks/useServiceWorker";
 const LEAGUES = [
   { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
   { id: 'silver', name: 'Silver League', color: 'from-gray-400 to-gray-600', minXp: 6000, maxXp: 12000 },
@@ -169,6 +170,7 @@ const Leaderboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { notifyLeaderboardChange, sendNotification, getNotificationPreference } = useNotifications();
+  const { showPositionLostNotification, isWithinNotificationHours } = useServiceWorker();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingUntilPeriodEnd());
@@ -476,18 +478,15 @@ const Leaderboard = () => {
     if (previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
       // User dropped in position - someone passed them
       const passer = entries[currentPosition - 2]; // The one who passed
-      if (passer && getNotificationPreference()) {
-        // Send notification immediately
-        sendNotification(
-          'Sıralaman değişti! 📊',
-          `${passer.name} seni geçti! Gel XP kazan ve sıralamana geri dön!`
-        );
+      if (passer && getNotificationPreference() && isWithinNotificationHours()) {
+        // Send notification via Service Worker
+        showPositionLostNotification(passer.name);
       }
     }
     previousPositionRef.current = currentPosition;
     
     return entries;
-  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, sendNotification, getNotificationPreference]);
+  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
 
   // Handle friend click for comparison
   const handleFriendClick = (entry: LeaderboardEntry) => {
