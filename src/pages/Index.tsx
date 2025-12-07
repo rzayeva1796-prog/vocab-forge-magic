@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, GraduationCap, ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { ArrowUpDown, GraduationCap } from "lucide-react";
 import { VocabularyBox } from "@/components/VocabularyBox";
 import { UnknownWordsBox } from "@/components/UnknownWordsBox";
 import { AllWordsDrawer } from "@/components/AllWordsDrawer";
@@ -9,6 +8,7 @@ import { LearnedWordsDrawer } from "@/components/LearnedWordsDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { makeAIRequest } from "@/lib/aiRequest";
+import { BottomNavigation } from "@/components/BottomNavigation";
 
 interface Word {
   english: string;
@@ -24,7 +24,6 @@ interface UnknownWord {
 }
 
 const Index = () => {
-  const navigate = useNavigate();
   const [inputWord, setInputWord] = useState("");
   const [translation, setTranslation] = useState("");
   const [exampleSentence, setExampleSentence] = useState("");
@@ -325,17 +324,13 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 p-4">
+    <div className="min-h-screen bg-background pb-20 p-4">
       <div className="max-w-2xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between py-4">
-          <Button variant="ghost" onClick={() => navigate("/")} className="shrink-0">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Menu
-          </Button>
           <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
             <GraduationCap className="w-8 h-8" />
-            Vocabulary Learner
+            Sözlük
           </h1>
           <div className="flex gap-2">
             <LearnedWordsDrawer words={learnedWords} onRemove={handleRemoveLearned} onWordsAdded={loadLearnedWords} />
@@ -414,6 +409,8 @@ const Index = () => {
           onAddWord={handleAddToLearned}
         />
       </div>
+
+      <BottomNavigation />
     </div>
   );
 };

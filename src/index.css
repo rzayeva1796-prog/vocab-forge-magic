@@ -111,3 +111,8 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Safe area for bottom navigation on mobile */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

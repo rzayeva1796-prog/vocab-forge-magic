@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send } from "lucide-react";
+import { Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useServiceWorker } from "@/hooks/useServiceWorker";
+import { BottomNavigation } from "@/components/BottomNavigation";
 const LEAGUES = [
   { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
   { id: 'silver', name: 'Silver League', color: 'from-gray-400 to-gray-600', minXp: 6000, maxXp: 12000 },
@@ -557,10 +558,7 @@ const Leaderboard = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background p-4">
-        <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
-          <ArrowLeft className="h-4 w-4 mr-2" /> Geri
-        </Button>
+      <div className="min-h-screen bg-background pb-20 p-4">
         <Card>
           <CardContent className="p-8 text-center">
             <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -570,24 +568,22 @@ const Leaderboard = () => {
             </Button>
           </CardContent>
         </Card>
+        <BottomNavigation />
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <BottomNavigation />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-4">
-      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
-        <ArrowLeft className="h-4 w-4 mr-2" /> Geri
-      </Button>
-
+    <div className="min-h-screen bg-background pb-20 p-4">
       {/* League Header */}
       <Card className={`mb-6 bg-gradient-to-r ${userLeague.color} text-white`}>
         <CardHeader className="pb-2">
@@ -789,6 +785,8 @@ const Leaderboard = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      <BottomNavigation />
     </div>
   );
 };

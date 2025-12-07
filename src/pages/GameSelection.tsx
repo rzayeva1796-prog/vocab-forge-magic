@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen, User, Trophy } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { BottomNavigation } from "@/components/BottomNavigation";
 
 const GameSelection = () => {
   const navigate = useNavigate();
@@ -9,55 +10,29 @@ const GameSelection = () => {
 
   const handleGameClick = (baseUrl: string) => {
     if (user) {
-      // Pass user_id as query parameter to external game
       window.location.href = `${baseUrl}?user_id=${user.id}`;
     } else {
-      // Redirect to login if not authenticated
       navigate("/auth");
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <p>Yükleniyor...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center p-4">
-      <div className="max-w-md w-full space-y-6">
-        <div className="flex justify-between items-center">
-          <Button variant="ghost" onClick={() => navigate("/")}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Geri
-          </Button>
-          {user && (
-            <Button variant="ghost" onClick={() => navigate("/profile")}>
-              <User className="w-4 h-4 mr-2" />
-              Profil
-            </Button>
-          )}
-        </div>
-        
-        <h1 className="text-4xl font-bold text-center text-primary mb-8">
-          Choose Game
+    <div className="min-h-screen bg-background pb-20">
+      <div className="p-4">
+        <h1 className="text-2xl font-bold text-center mb-6 text-foreground">
+          Oyunlar
         </h1>
 
-        {user && (
-          <Button
-            onClick={() => navigate("/leaderboard")}
-            className="w-full h-16 text-lg bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700"
-            size="lg"
-          >
-            <Trophy className="w-6 h-6 mr-2" />
-            Leaderboard
-          </Button>
-        )}
-
         {!user && (
-          <div className="text-center p-4 bg-secondary/50 rounded-lg mb-4">
+          <div className="text-center p-4 bg-secondary/50 rounded-lg mb-6 max-w-md mx-auto">
             <p className="text-sm text-muted-foreground mb-2">
               Oyun ilerlemesi kaydetmek için giriş yapın
             </p>
@@ -67,11 +42,11 @@ const GameSelection = () => {
             </Button>
           </div>
         )}
-        
-        <div className="space-y-4">
+
+        <div className="max-w-md mx-auto space-y-4">
           <Button
             onClick={() => handleGameClick("https://wordfall-mix.lovable.app")}
-            className="w-full h-20 text-xl"
+            className="w-full h-20 text-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
             size="lg"
           >
             <Gamepad2 className="w-8 h-8 mr-3" />
@@ -80,9 +55,8 @@ const GameSelection = () => {
           
           <Button
             onClick={() => handleGameClick("https://vocab-quest-cards.lovable.app")}
-            className="w-full h-20 text-xl"
+            className="w-full h-20 text-xl bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600"
             size="lg"
-            variant="secondary"
           >
             <Zap className="w-8 h-8 mr-3" />
             Kart
@@ -90,25 +64,16 @@ const GameSelection = () => {
           
           <Button
             onClick={() => handleGameClick("https://wordflow-match-up.lovable.app")}
-            className="w-full h-20 text-xl"
+            className="w-full h-20 text-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
             size="lg"
-            variant="outline"
           >
             <GitCompare className="w-8 h-8 mr-3" />
             Eşleştirme
           </Button>
-          
-          <Button
-            onClick={() => handleGameClick("https://star-reader-sync.lovable.app")}
-            className="w-full h-20 text-xl"
-            size="lg"
-            variant="ghost"
-          >
-            <BookOpen className="w-8 h-8 mr-3" />
-            Kitap
-          </Button>
         </div>
       </div>
+
+      <BottomNavigation />
     </div>
   );
 };
