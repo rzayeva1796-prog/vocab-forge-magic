@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown } from "lucide-react";
+import { ArrowLeft, Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
 
 const LEAGUES = [
   { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
@@ -28,6 +29,20 @@ const BOT_NAMES = [
   "Barış", "Cem", "Doruk", "Eren", "Furkan", "Gökhan", "Halil", "İlker", "Kaya", "Levent"
 ];
 
+// Bot avatar URLs - realistic profile pictures
+const BOT_AVATARS = [
+  "https://randomuser.me/api/portraits/men/1.jpg",
+  "https://randomuser.me/api/portraits/women/1.jpg",
+  "https://randomuser.me/api/portraits/men/2.jpg",
+  "https://randomuser.me/api/portraits/women/2.jpg",
+  "https://randomuser.me/api/portraits/men/3.jpg",
+  "https://randomuser.me/api/portraits/women/3.jpg",
+  "https://randomuser.me/api/portraits/men/4.jpg",
+  "https://randomuser.me/api/portraits/women/4.jpg",
+  "https://randomuser.me/api/portraits/men/5.jpg",
+  "https://randomuser.me/api/portraits/women/5.jpg",
+];
+
 interface LeaderboardEntry {
   id: string;
   name: string;
@@ -43,6 +58,7 @@ const Leaderboard = () => {
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
   const [periodStart, setPeriodStart] = useState<Date>(new Date());
+  const [simulatedHoursOffset, setSimulatedHoursOffset] = useState(0);
   const [leagueUsers, setLeagueUsers] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [friends, setFriends] = useState<any[]>([]);
@@ -53,6 +69,36 @@ const Leaderboard = () => {
       loadLeaderboardData();
     } else {
       setLoading(false);
+    }
+  }, [user]);
+
+  // Sync period_xp with total XP from profile
+  const syncXpFromProfile = async () => {
+    if (!user) return;
+    
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (profile) {
+      const totalXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
+                      (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
+      
+      // Update period_xp in user_leagues
+      await supabase
+        .from('user_leagues')
+        .update({ period_xp: totalXp })
+        .eq('user_id', user.id);
+      
+      setUserPeriodXp(totalXp);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      syncXpFromProfile();
     }
   }, [user]);
 
@@ -161,33 +207,65 @@ const Leaderboard = () => {
     setPeriodStart(new Date());
   };
 
-  // Generate bots for the league
+  // Simulated time for testing
+  const simulatedTime = useMemo(() => {
+    const now = new Date();
+    now.setHours(now.getHours() + simulatedHoursOffset);
+    return now;
+  }, [simulatedHoursOffset]);
+
+  const handleAddHour = () => {
+    setSimulatedHoursOffset(prev => prev + 1);
+    toast({
+      title: "⏰ +1 Saat",
+      description: `Simülasyon: ${simulatedHoursOffset + 1} saat ileri`,
+    });
+  };
+
+  const handleSubtractHour = () => {
+    if (simulatedHoursOffset > 0) {
+      setSimulatedHoursOffset(prev => prev - 1);
+      toast({
+        title: "⏰ -1 Saat",
+        description: `Simülasyon: ${simulatedHoursOffset - 1} saat ileri`,
+      });
+    }
+  };
+
+  // Generate bots for the league with seeded random for consistency
   const generateBots = useMemo(() => {
     const league = userLeague;
-    const hoursElapsed = Math.min(72, Math.floor((new Date().getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
+    const hoursElapsed = Math.min(72, Math.floor((simulatedTime.getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
     
     // Calculate real users count (user + friends in league)
     const realUsersCount = 1 + friends.length;
     const botsNeeded = Math.max(0, 10 - realUsersCount);
     
+    // Use seeded random for consistent bot generation
+    const seed = periodStart.getTime();
+    const seededRandom = (index: number, offset: number = 0) => {
+      const x = Math.sin(seed + index * 1000 + offset) * 10000;
+      return x - Math.floor(x);
+    };
+    
     const bots: LeaderboardEntry[] = [];
-    const usedNames = new Set<string>();
     
     for (let i = 0; i < botsNeeded; i++) {
-      // Get unique bot name
-      let name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      while (usedNames.has(name)) {
-        name = BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)];
-      }
-      usedNames.add(name);
+      // Get bot name based on seed
+      const nameIndex = Math.floor(seededRandom(i) * BOT_NAMES.length);
+      const name = BOT_NAMES[nameIndex];
+      
+      // Get bot avatar
+      const avatarIndex = Math.floor(seededRandom(i, 100) * BOT_AVATARS.length);
+      const avatar = BOT_AVATARS[avatarIndex];
       
       // Calculate bot XP with variations
       const botIndex = i;
       const xpRange = league.maxXp - league.minXp;
       const baseDaily = league.minXp + (xpRange / 10) * (botIndex + 1);
       
-      // Daily variation ±10%
-      const dailyVariation = 1 + (Math.random() * 0.2 - 0.1);
+      // Daily variation ±10% (seeded)
+      const dailyVariation = 1 + (seededRandom(i, 200) * 0.2 - 0.1);
       const adjustedDaily = baseDaily * dailyVariation;
       
       // Calculate hourly with ±20% variation but keep within daily bounds
@@ -195,7 +273,7 @@ const Leaderboard = () => {
       let totalXp = 0;
       
       for (let h = 0; h < hoursElapsed; h++) {
-        const hourlyVariation = 1 + (Math.random() * 0.4 - 0.2);
+        const hourlyVariation = 1 + (seededRandom(i * 100 + h, 300) * 0.4 - 0.2);
         totalXp += baseHourly * hourlyVariation;
       }
       
@@ -207,7 +285,7 @@ const Leaderboard = () => {
       bots.push({
         id: `bot-${i}`,
         name,
-        avatar_url: null,
+        avatar_url: avatar,
         xp: Math.floor(totalXp),
         isBot: true,
         isCurrentUser: false
@@ -215,7 +293,7 @@ const Leaderboard = () => {
     }
     
     return bots;
-  }, [userLeague, periodStart, friends.length]);
+  }, [userLeague, periodStart, friends.length, simulatedTime]);
 
   // Build leaderboard entries
   const leaderboardEntries = useMemo(() => {
@@ -270,8 +348,7 @@ const Leaderboard = () => {
   const timeRemaining = useMemo(() => {
     const endDate = new Date(periodStart);
     endDate.setDate(endDate.getDate() + 3);
-    const now = new Date();
-    const diff = endDate.getTime() - now.getTime();
+    const diff = endDate.getTime() - simulatedTime.getTime();
     
     if (diff <= 0) return '0s 0dk';
     
@@ -279,7 +356,7 @@ const Leaderboard = () => {
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     
     return `${hours}s ${minutes}dk`;
-  }, [periodStart]);
+  }, [periodStart, simulatedTime]);
 
   if (!user) {
     return (
@@ -326,11 +403,40 @@ const Leaderboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm opacity-80">Kalan Süre</p>
-              <p className="text-xl font-bold">{timeRemaining}</p>
+              <div className="flex items-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-6 w-6 p-0 text-white hover:bg-white/20"
+                  onClick={handleSubtractHour}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <p className="text-xl font-bold">{timeRemaining}</p>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-6 w-6 p-0 text-white hover:bg-white/20"
+                  onClick={handleAddHour}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              {simulatedHoursOffset > 0 && (
+                <p className="text-xs opacity-60">+{simulatedHoursOffset} saat simülasyon</p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-sm opacity-80">Senin XP</p>
               <p className="text-xl font-bold">{userPeriodXp.toLocaleString()}</p>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="h-6 px-2 text-xs text-white hover:bg-white/20"
+                onClick={syncXpFromProfile}
+              >
+                <Bell className="h-3 w-3 mr-1" /> Senkronize Et
+              </Button>
             </div>
           </div>
         </CardContent>
