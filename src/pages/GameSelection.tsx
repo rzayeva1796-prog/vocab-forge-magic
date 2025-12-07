@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen } from "lucide-react";
+import { ArrowLeft, Gamepad2, Zap, GitCompare, LogIn, BookOpen, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -28,10 +28,18 @@ const GameSelection = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back
-        </Button>
+        <div className="flex justify-between items-center">
+          <Button variant="ghost" onClick={() => navigate("/")}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Geri
+          </Button>
+          {user && (
+            <Button variant="ghost" onClick={() => navigate("/profile")}>
+              <User className="w-4 h-4 mr-2" />
+              Profil
+            </Button>
+          )}
+        </div>
         
         <h1 className="text-4xl font-bold text-center text-primary mb-8">
           Choose Game
