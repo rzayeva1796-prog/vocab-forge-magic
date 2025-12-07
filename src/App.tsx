@@ -12,6 +12,7 @@ import FlashCard from "./pages/FlashCard";
 import Twice from "./pages/Twice";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
+import Leaderboard from "./pages/Leaderboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/game/flash" element={<FlashCard />} />
             <Route path="/game/twice" element={<Twice />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
