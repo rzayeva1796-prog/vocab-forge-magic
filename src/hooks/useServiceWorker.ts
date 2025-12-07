@@ -91,8 +91,8 @@ export const useServiceWorker = () => {
   const checkPendingLocalNotifications = useCallback(() => {
     if (checkInactivity()) {
       showLocalNotification(
-        'Seni özledik! 🎮',
-        '3 saattir oyuna girmedin. Gel XP kazan!',
+        'Oyuna Geri Dön! 🎮',
+        '3 saattir oynamadın, kelimelerini unutma!',
         'inactivity'
       );
     }
@@ -100,8 +100,8 @@ export const useServiceWorker = () => {
     if (checkDailyLogin()) {
       const streak = localStorage.getItem('login_streak') || '0';
       showLocalNotification(
-        'Günlük giriş! 🔥',
-        `${streak} günlük serin var. Bugün giriş yaparak serisini koru!`,
+        'Seriyi Kaybetme! 🔥',
+        `${streak} günlük serin var. Bugün giriş yap, seriyi koru!`,
         'daily-login'
       );
     }
@@ -111,6 +111,15 @@ export const useServiceWorker = () => {
     updateLastLoginDate();
   }, [checkInactivity, checkDailyLogin, showLocalNotification, updateLastActivity, updateLastLoginDate]);
 
+  // Show leaderboard position lost notification
+  const showPositionLostNotification = useCallback((passerName: string) => {
+    showLocalNotification(
+      'Yerini Kaybettin! 📉',
+      `${passerName} seni geçti! Gel de yerini geri al!`,
+      'leaderboard-position'
+    );
+  }, [showLocalNotification]);
+
   return {
     swRegistration,
     isSupported,
@@ -118,6 +127,7 @@ export const useServiceWorker = () => {
     updateLastLoginDate,
     checkPendingLocalNotifications,
     showLocalNotification,
+    showPositionLostNotification,
     isWithinNotificationHours
   };
 };
