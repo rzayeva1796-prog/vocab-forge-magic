@@ -445,6 +445,37 @@ const Profile = () => {
               </div>
             </div>
 
+            {/* Test Notification Button */}
+            {notificationsEnabled && (
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  toast.success('10 saniye sonra bildirim gelecek...');
+                  setTimeout(() => {
+                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                      navigator.serviceWorker.controller.postMessage({
+                        type: 'TEST_NOTIFICATION',
+                        title: 'Oyuna Geri Dön! 🎮',
+                        body: '3 saattir oynamadın, kelimelerini unutma!'
+                      });
+                    } else {
+                      // Fallback to regular notification
+                      if (Notification.permission === 'granted') {
+                        new Notification('Oyuna Geri Dön! 🎮', {
+                          body: '3 saattir oynamadın, kelimelerini unutma!',
+                          icon: '/favicon.ico'
+                        });
+                      }
+                    }
+                  }, 10000);
+                }}
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Test Bildirimi Gönder (10sn)
+              </Button>
+            )}
+
             {/* Total XP */}
             <div className="text-center p-4 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-lg">
               <div className="flex items-center justify-center gap-2 mb-2">
