@@ -321,16 +321,19 @@ export type Database = {
       word_packages: {
         Row: {
           created_at: string
+          display_order: number | null
           id: string
           name: string
         }
         Insert: {
           created_at?: string
+          display_order?: number | null
           id?: string
           name: string
         }
         Update: {
           created_at?: string
+          display_order?: number | null
           id?: string
           name?: string
         }

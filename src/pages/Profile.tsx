@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2, Flame, Bell, BellOff } from "lucide-react";
+import { Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2, Flame, Bell, BellOff, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDailyLogin } from "@/hooks/useDailyLogin";
 import { useNotifications } from "@/hooks/useNotifications";
 import { Switch } from "@/components/ui/switch";
+import { BottomNavigation } from "@/components/BottomNavigation";
 
 interface Profile {
   id: string;
@@ -349,12 +350,14 @@ const Profile = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 p-4">
-      <div className="max-w-md mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/game")}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Geri
-        </Button>
+    <div className="min-h-screen bg-background pb-20">
+      <div className="max-w-md mx-auto p-4 space-y-6">
+        <div className="flex justify-end">
+          <Button variant="ghost" onClick={async () => { await supabase.auth.signOut(); navigate('/auth'); }}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Çıkış
+          </Button>
+        </div>
 
         <Card>
           <CardHeader className="text-center">
@@ -666,6 +669,8 @@ const Profile = () => {
           </CardContent>
         </Card>
       </div>
+
+      <BottomNavigation />
     </div>
   );
 };
