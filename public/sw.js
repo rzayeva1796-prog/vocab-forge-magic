@@ -128,13 +128,35 @@ self.addEventListener('message', (event) => {
     if (!isWithinNotificationHours()) return;
     
     const { title, body, tag } = event.data;
-    self.registration.showNotification(title, {
-      body,
-      icon: '/favicon.ico',
-      badge: '/favicon.ico',
-      vibrate: [200, 100, 200],
-      tag: tag || 'local-notification',
-      renotify: true
-    });
+    showNotification(title, body, tag);
+  }
+
+  if (event.data.type === 'TEST_NOTIFICATION') {
+    const { title, body } = event.data;
+    showNotification(title, body, 'test-notification');
   }
 });
+
+// Helper function to show notification with sound
+async function showNotification(title, body, tag = 'vocab-notification') {
+  // Play notification sound from cache
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const soundResponse = await cache.match(NOTIFICATION_SOUND_URL);
+    if (soundResponse) {
+      // Can't play audio directly in SW, but the notification vibration will work
+      console.log('[SW] Sound cached and ready');
+    }
+  } catch (e) {
+    console.log('[SW] Sound cache error:', e);
+  }
+
+  self.registration.showNotification(title, {
+    body,
+    icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    vibrate: [200, 100, 200],
+    tag,
+    renotify: true
+  });
+}
