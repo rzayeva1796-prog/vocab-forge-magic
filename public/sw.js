@@ -1,22 +1,71 @@
-// Service Worker for Push Notifications and Offline Support
+// Service Worker for Push Notifications and Background Sync
+const CACHE_NAME = 'vocab-notifications-v2';
+const NOTIFICATION_SOUND = '/notification.mp3';
 
-const CACHE_NAME = 'vocab-notifications-v1';
-const NOTIFICATION_SOUND_URL = '/notification.mp3';
+// IndexedDB for offline data storage
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('vocab-notifications-db', 1);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'key' });
+      }
+    };
+  });
+}
 
-// Cache notification sound on install
+async function getFromDB(key) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction(['settings'], 'readonly');
+      const store = transaction.objectStore('settings');
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result?.value);
+      request.onerror = () => resolve(null);
+    });
+  } catch (e) {
+    console.log('[SW] IndexedDB error:', e);
+    return null;
+  }
+}
+
+async function setInDB(key, value) {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const transaction = db.transaction(['settings'], 'readwrite');
+      const store = transaction.objectStore('settings');
+      store.put({ key, value });
+      transaction.oncomplete = () => resolve(true);
+      transaction.onerror = () => resolve(false);
+    });
+  } catch (e) {
+    console.log('[SW] IndexedDB error:', e);
+    return false;
+  }
+}
+
+// Install event - cache notification sound
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing service worker...');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log('[SW] Caching notification sound');
-      return cache.add(NOTIFICATION_SOUND_URL);
+      return cache.add(NOTIFICATION_SOUND);
     })
   );
   self.skipWaiting();
 });
 
+// Activate event
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+  console.log('[SW] Service worker activated');
   event.waitUntil(self.clients.claim());
 });
 
@@ -28,135 +77,227 @@ function isWithinNotificationHours() {
   return utc4Hours >= 10 && utc4Hours < 22;
 }
 
-// Handle push notifications from server (for leaderboard changes)
-self.addEventListener('push', (event) => {
-  console.log('[SW] Push received:', event);
-  
+// Show notification
+async function showNotification(title, body, tag, data = {}) {
   if (!isWithinNotificationHours()) {
-    console.log('[SW] Outside notification hours, skipping');
+    console.log('[SW] Outside notification hours');
     return;
   }
 
-  let data = {
-    title: 'Vocab Game',
-    body: 'Yeni bir bildiriminiz var!',
+  const options = {
+    body,
     icon: '/favicon.ico',
-    badge: '/favicon.ico'
+    badge: '/favicon.ico',
+    tag: tag || 'vocab-notification',
+    requireInteraction: true,
+    vibrate: [200, 100, 200],
+    renotify: true,
+    data: {
+      url: self.location.origin,
+      ...data
+    }
+  };
+
+  try {
+    await self.registration.showNotification(title, options);
+    console.log('[SW] Notification shown:', title);
+  } catch (error) {
+    console.error('[SW] Error showing notification:', error);
+  }
+}
+
+// Check inactivity and show notification
+async function checkInactivityAndNotify() {
+  const enabled = await getFromDB('notifications_enabled');
+  if (!enabled) return;
+
+  const lastActivity = await getFromDB('last_activity_timestamp');
+  if (!lastActivity) return;
+
+  const hoursSinceActivity = (Date.now() - lastActivity) / (1000 * 60 * 60);
+  
+  if (hoursSinceActivity >= 3) {
+    await showNotification(
+      'Oyuna Geri Dön! 🎮',
+      '3 saattir oynamadın, kelimelerini unutma!',
+      'inactivity'
+    );
+    // Reset timer after notification
+    await setInDB('last_activity_timestamp', Date.now());
+  }
+}
+
+// Check daily login and show notification
+async function checkDailyLoginAndNotify() {
+  const enabled = await getFromDB('notifications_enabled');
+  if (!enabled) return;
+
+  const lastLoginDate = await getFromDB('last_login_date');
+  const today = new Date().toISOString().split('T')[0];
+  
+  if (lastLoginDate !== today) {
+    const streak = await getFromDB('login_streak') || '0';
+    await showNotification(
+      'Seriyi Kaybetme! 🔥',
+      `${streak} günlük serin var. Bugün giriş yap, seriyi koru!`,
+      'daily-login'
+    );
+  }
+}
+
+// Handle push events (for remote notifications like leaderboard changes)
+self.addEventListener('push', (event) => {
+  console.log('[SW] Push received');
+  
+  let data = {
+    title: 'Bildirim',
+    body: 'Yeni bir bildiriminiz var!'
   };
 
   if (event.data) {
     try {
-      data = { ...data, ...event.data.json() };
+      data = event.data.json();
     } catch (e) {
       data.body = event.data.text();
     }
   }
 
-  const options = {
-    body: data.body,
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
-    vibrate: [200, 100, 200],
-    tag: data.tag || 'vocab-notification',
-    renotify: true,
-    data: {
-      url: data.url || '/',
-      timestamp: Date.now()
-    }
-  };
-
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    showNotification(data.title, data.body, data.tag, data)
   );
 });
 
 // Handle notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event);
+  console.log('[SW] Notification clicked');
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/';
+  const url = event.notification.data?.url || self.location.origin;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Check if app is already open
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Open new window if not
       if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
+        return clients.openWindow(url);
       }
     })
   );
 });
 
-// Periodic sync for checking inactivity (when supported)
+// Background Sync for periodic checks
 self.addEventListener('periodicsync', (event) => {
+  console.log('[SW] Periodic sync:', event.tag);
+  
   if (event.tag === 'check-inactivity') {
     event.waitUntil(checkInactivityAndNotify());
+  } else if (event.tag === 'check-daily-login') {
+    event.waitUntil(checkDailyLoginAndNotify());
   }
 });
 
-async function checkInactivityAndNotify() {
-  if (!isWithinNotificationHours()) return;
-
-  // Get stored data from IndexedDB or use message to main thread
-  const clients = await self.clients.matchAll();
-  if (clients.length > 0) {
-    // App is open, don't send inactivity notification
-    return;
+// Regular sync event
+self.addEventListener('sync', (event) => {
+  console.log('[SW] Sync event:', event.tag);
+  
+  if (event.tag === 'check-notifications') {
+    event.waitUntil(
+      Promise.all([
+        checkInactivityAndNotify(),
+        checkDailyLoginAndNotify()
+      ])
+    );
   }
-
-  // Request last activity check from any available client
-  // This is a fallback - main logic is in the app
-}
+});
 
 // Handle messages from main thread
-self.addEventListener('message', (event) => {
-  console.log('[SW] Message received:', event.data);
+self.addEventListener('message', async (event) => {
+  console.log('[SW] Message received:', event.data.type);
   
-  if (event.data.type === 'CACHE_SOUND') {
-    caches.open(CACHE_NAME).then((cache) => {
-      cache.add(NOTIFICATION_SOUND_URL);
-    });
-  }
-  
-  if (event.data.type === 'SHOW_LOCAL_NOTIFICATION') {
-    if (!isWithinNotificationHours()) return;
-    
-    const { title, body, tag } = event.data;
-    showNotification(title, body, tag);
+  const { type } = event.data;
+
+  if (type === 'CACHE_SOUND') {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.add(NOTIFICATION_SOUND);
+    console.log('[SW] Sound cached');
   }
 
-  if (event.data.type === 'TEST_NOTIFICATION') {
-    const { title, body } = event.data;
-    showNotification(title, body, 'test-notification');
+  if (type === 'SHOW_LOCAL_NOTIFICATION') {
+    const { title, body, tag } = event.data;
+    await showNotification(title, body, tag);
+  }
+
+  if (type === 'TEST_NOTIFICATION') {
+    const { title, body, delay } = event.data;
+    if (delay) {
+      setTimeout(async () => {
+        await showNotification(title, body, 'test-notification');
+      }, delay);
+    } else {
+      await showNotification(title, body, 'test-notification');
+    }
+  }
+
+  if (type === 'UPDATE_ACTIVITY') {
+    await setInDB('last_activity_timestamp', Date.now());
+    console.log('[SW] Activity updated in IndexedDB');
+  }
+
+  if (type === 'UPDATE_LOGIN_DATE') {
+    const today = new Date().toISOString().split('T')[0];
+    await setInDB('last_login_date', today);
+    console.log('[SW] Login date updated in IndexedDB');
+  }
+
+  if (type === 'UPDATE_SETTINGS') {
+    const { enabled, streak } = event.data;
+    await setInDB('notifications_enabled', enabled);
+    if (streak !== undefined) {
+      await setInDB('login_streak', streak);
+    }
+    console.log('[SW] Settings updated in IndexedDB');
+  }
+
+  if (type === 'REGISTER_PERIODIC_SYNC') {
+    if ('periodicSync' in self.registration) {
+      try {
+        await self.registration.periodicSync.register('check-inactivity', {
+          minInterval: 60 * 60 * 1000
+        });
+        await self.registration.periodicSync.register('check-daily-login', {
+          minInterval: 60 * 60 * 1000
+        });
+        console.log('[SW] Periodic sync registered');
+      } catch (error) {
+        console.log('[SW] Periodic sync not supported:', error);
+      }
+    }
+  }
+
+  if (type === 'CHECK_NOW') {
+    await Promise.all([
+      checkInactivityAndNotify(),
+      checkDailyLoginAndNotify()
+    ]);
   }
 });
 
-// Helper function to show notification with sound
-async function showNotification(title, body, tag = 'vocab-notification') {
-  // Play notification sound from cache
-  try {
-    const cache = await caches.open(CACHE_NAME);
-    const soundResponse = await cache.match(NOTIFICATION_SOUND_URL);
-    if (soundResponse) {
-      // Can't play audio directly in SW, but the notification vibration will work
-      console.log('[SW] Sound cached and ready');
-    }
-  } catch (e) {
-    console.log('[SW] Sound cache error:', e);
-  }
+// Periodic check using setInterval as fallback
+let checkInterval = null;
 
-  self.registration.showNotification(title, {
-    body,
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
-    vibrate: [200, 100, 200],
-    tag,
-    renotify: true
-  });
+function startPeriodicCheck() {
+  if (checkInterval) return;
+  
+  checkInterval = setInterval(async () => {
+    console.log('[SW] Periodic check running...');
+    await checkInactivityAndNotify();
+    await checkDailyLoginAndNotify();
+  }, 60 * 60 * 1000); // 1 hour
+  
+  console.log('[SW] Periodic check started');
 }
+
+startPeriodicCheck();

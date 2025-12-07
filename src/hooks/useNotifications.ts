@@ -26,7 +26,8 @@ export const useNotifications = () => {
     isSupported: swSupported,
     updateLastActivity: updateLocalActivity,
     checkPendingLocalNotifications,
-    showLocalNotification
+    showLocalNotification,
+    syncSettingsToSW
   } = useServiceWorker();
   
   const {
@@ -75,6 +76,12 @@ export const useNotifications = () => {
 
   const saveNotificationPreference = async (enabled: boolean) => {
     localStorage.setItem(NOTIFICATION_ENABLED_KEY, JSON.stringify(enabled));
+    
+    // Get login streak for SW sync
+    const streak = localStorage.getItem(LOGIN_STREAK_KEY) || '0';
+    
+    // Sync settings to Service Worker for offline access
+    syncSettingsToSW(enabled, streak);
     
     if (user && swRegistration) {
       if (enabled) {

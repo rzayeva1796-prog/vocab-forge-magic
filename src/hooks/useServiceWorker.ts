@@ -7,6 +7,7 @@ const NOTIFICATIONS_ENABLED_KEY = 'notifications_enabled';
 export const useServiceWorker = () => {
   const [swRegistration, setSwRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [isSupported, setIsSupported] = useState(false);
+  const [periodicSyncSupported, setPeriodicSyncSupported] = useState(false);
 
   // Register service worker
   useEffect(() => {
@@ -14,13 +15,26 @@ export const useServiceWorker = () => {
       setIsSupported(true);
       
       navigator.serviceWorker.register('/sw.js')
-        .then((registration) => {
+        .then(async (registration) => {
           console.log('[App] Service Worker registered:', registration);
           setSwRegistration(registration);
           
           // Cache notification sound
           if (registration.active) {
             registration.active.postMessage({ type: 'CACHE_SOUND' });
+          }
+
+          // Check for periodic sync support
+          if ('periodicSync' in registration) {
+            setPeriodicSyncSupported(true);
+            const status = await navigator.permissions.query({
+              name: 'periodic-background-sync' as PermissionName
+            });
+            
+            if (status.state === 'granted') {
+              // Register periodic sync
+              registration.active?.postMessage({ type: 'REGISTER_PERIODIC_SYNC' });
+            }
           }
         })
         .catch((error) => {
@@ -29,16 +43,35 @@ export const useServiceWorker = () => {
     }
   }, []);
 
-  // Update last activity timestamp
+  // Update last activity timestamp (both localStorage and IndexedDB via SW)
   const updateLastActivity = useCallback(() => {
     localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
-  }, []);
+    // Also update in IndexedDB for offline access
+    if (swRegistration?.active) {
+      swRegistration.active.postMessage({ type: 'UPDATE_ACTIVITY' });
+    }
+  }, [swRegistration]);
 
-  // Update last login date
+  // Update last login date (both localStorage and IndexedDB via SW)
   const updateLastLoginDate = useCallback(() => {
     const today = new Date().toISOString().split('T')[0];
     localStorage.setItem(LAST_LOGIN_DATE_KEY, today);
-  }, []);
+    // Also update in IndexedDB for offline access
+    if (swRegistration?.active) {
+      swRegistration.active.postMessage({ type: 'UPDATE_LOGIN_DATE' });
+    }
+  }, [swRegistration]);
+
+  // Sync settings to IndexedDB for offline access
+  const syncSettingsToSW = useCallback((enabled: boolean, streak?: string) => {
+    if (swRegistration?.active) {
+      swRegistration.active.postMessage({ 
+        type: 'UPDATE_SETTINGS', 
+        enabled,
+        streak 
+      });
+    }
+  }, [swRegistration]);
 
   // Check if within notification hours (UTC+4 10:00-22:00)
   const isWithinNotificationHours = useCallback(() => {
@@ -120,14 +153,24 @@ export const useServiceWorker = () => {
     );
   }, [showLocalNotification]);
 
+  // Request background sync check
+  const requestBackgroundCheck = useCallback(() => {
+    if (swRegistration?.active) {
+      swRegistration.active.postMessage({ type: 'CHECK_NOW' });
+    }
+  }, [swRegistration]);
+
   return {
     swRegistration,
     isSupported,
+    periodicSyncSupported,
     updateLastActivity,
     updateLastLoginDate,
+    syncSettingsToSW,
     checkPendingLocalNotifications,
     showLocalNotification,
     showPositionLostNotification,
-    isWithinNotificationHours
+    isWithinNotificationHours,
+    requestBackgroundCheck
   };
 };
