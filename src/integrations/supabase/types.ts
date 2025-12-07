@@ -175,6 +175,36 @@ export type Database = {
         }
         Relationships: []
       }
+      pending_notifications: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          read: boolean
+          sender_name: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          sender_name?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          read?: boolean
+          sender_name?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
