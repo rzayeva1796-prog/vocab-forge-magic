@@ -123,14 +123,55 @@ interface LeaderboardEntry {
 // Global seed for consistent bots across all users
 const GLOBAL_BOT_SEED = 1733600000000; // Fixed seed for all users
 
+// Get the current 3-day period start time in UTC+4
+// Periods start at 00:00 UTC+4 and last 3 days
+const getGlobalPeriodStart = (): Date => {
+  const now = new Date();
+  // Convert to UTC+4
+  const utc4Offset = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+  const nowUtc4 = new Date(now.getTime() + utc4Offset);
+  
+  // Set to midnight UTC+4
+  nowUtc4.setUTCHours(0, 0, 0, 0);
+  
+  // Find the start of the current 3-day period
+  // Using a fixed reference point: Jan 1, 2024 00:00 UTC+4
+  const referenceDate = new Date('2024-01-01T00:00:00+04:00');
+  const daysSinceReference = Math.floor((nowUtc4.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
+  const periodNumber = Math.floor(daysSinceReference / 3);
+  const periodStartDays = periodNumber * 3;
+  
+  const periodStart = new Date(referenceDate.getTime() + periodStartDays * 24 * 60 * 60 * 1000);
+  // Convert back from UTC+4 to local time for consistency
+  return new Date(periodStart.getTime() - utc4Offset);
+};
+
+// Get time remaining until next period (at 00:00 UTC+4)
+const getTimeRemainingUntilPeriodEnd = (): { hours: number; minutes: number; seconds: number } => {
+  const now = new Date();
+  const periodStart = getGlobalPeriodStart();
+  const periodEnd = new Date(periodStart.getTime() + 3 * 24 * 60 * 60 * 1000);
+  
+  const diff = periodEnd.getTime() - now.getTime();
+  
+  if (diff <= 0) {
+    return { hours: 0, minutes: 0, seconds: 0 };
+  }
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  return { hours, minutes, seconds };
+};
+
 const Leaderboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { notifyLeaderboardChange, sendNotification, getNotificationPreference } = useNotifications();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
-  const [periodStart, setPeriodStart] = useState<Date>(new Date());
-  const [simulatedHoursOffset, setSimulatedHoursOffset] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingUntilPeriodEnd());
   const [leagueUsers, setLeagueUsers] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [friends, setFriends] = useState<any[]>([]);
@@ -138,6 +179,15 @@ const Leaderboard = () => {
   const previousPositionRef = useRef<number | null>(null);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<LeaderboardEntry | null>(null);
+  const [sendingNotification, setSendingNotification] = useState<string | null>(null);
+
+  // Update time remaining every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeRemaining(getTimeRemainingUntilPeriodEnd());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -192,23 +242,22 @@ const Leaderboard = () => {
         const league = LEAGUES.find(l => l.id === leagueData.current_league) || LEAGUES[0];
         setUserLeague(league);
         setUserPeriodXp(leagueData.period_xp || 0);
-        setPeriodStart(new Date(leagueData.period_start_date));
         
-        // Check if 3 days passed
-        const now = new Date();
-        const daysPassed = Math.floor((now.getTime() - new Date(leagueData.period_start_date).getTime()) / (1000 * 60 * 60 * 24));
+        // Check if period has ended (using global period timing)
+        const globalPeriodStart = getGlobalPeriodStart();
+        const lastPeriodStart = new Date(leagueData.period_start_date);
         
-        if (daysPassed >= 3) {
-          // Reset period and handle league changes
+        // If the stored period start is from a previous period, reset
+        if (globalPeriodStart.getTime() > lastPeriodStart.getTime()) {
           await handlePeriodEnd(leagueData);
         }
       } else {
-        // Create initial league entry
+        // Create initial league entry with global period start
         await supabase.from('user_leagues').insert({
           user_id: user.id,
           current_league: 'bronze',
           period_xp: 0,
-          period_start_date: new Date().toISOString()
+          period_start_date: getGlobalPeriodStart().toISOString()
         });
       }
 
@@ -281,12 +330,14 @@ const Leaderboard = () => {
   const handlePeriodEnd = async (leagueData: any) => {
     if (!user) return;
     
+    const globalPeriodStart = getGlobalPeriodStart();
+    
     // Reset period XP in user_leagues
     await supabase
       .from('user_leagues')
       .update({
         period_xp: 0,
-        period_start_date: new Date().toISOString()
+        period_start_date: globalPeriodStart.toISOString()
       })
       .eq('user_id', user.id);
     
@@ -302,7 +353,6 @@ const Leaderboard = () => {
       .eq('user_id', user.id);
     
     setUserPeriodXp(0);
-    setPeriodStart(new Date());
     
     toast({
       title: "⏰ Periyot Sıfırlandı",
@@ -310,35 +360,12 @@ const Leaderboard = () => {
     });
   };
 
-  // Simulated time for testing
-  const simulatedTime = useMemo(() => {
-    const now = new Date();
-    now.setHours(now.getHours() + simulatedHoursOffset);
-    return now;
-  }, [simulatedHoursOffset]);
-
-  const handleAddHour = () => {
-    setSimulatedHoursOffset(prev => prev + 1);
-    toast({
-      title: "⏰ +1 Saat",
-      description: `Simülasyon: ${simulatedHoursOffset + 1} saat ileri`,
-    });
-  };
-
-  const handleSubtractHour = () => {
-    if (simulatedHoursOffset > 0) {
-      setSimulatedHoursOffset(prev => prev - 1);
-      toast({
-        title: "⏰ -1 Saat",
-        description: `Simülasyon: ${simulatedHoursOffset - 1} saat ileri`,
-      });
-    }
-  };
-
   // Generate bots for the league with global seed for consistency across ALL users
   const generateBots = useMemo(() => {
     const league = userLeague;
-    const hoursElapsed = Math.min(72, Math.floor((simulatedTime.getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
+    const globalPeriodStart = getGlobalPeriodStart();
+    const now = new Date();
+    const hoursElapsed = Math.min(72, Math.floor((now.getTime() - globalPeriodStart.getTime()) / (1000 * 60 * 60)));
     
     // Calculate real users count (user + friends in league)
     const realUsersCount = 1 + friends.length;
@@ -401,7 +428,7 @@ const Leaderboard = () => {
     }
     
     return bots;
-  }, [userLeague, periodStart, friends.length, simulatedTime]);
+  }, [userLeague, friends.length, timeRemaining]);
 
   // Build leaderboard entries
   const leaderboardEntries = useMemo(() => {
@@ -470,19 +497,44 @@ const Leaderboard = () => {
     }
   };
 
-  // Send notification to friend
-  const handleSendFriendNotification = (e: React.MouseEvent, entry: LeaderboardEntry) => {
+  // Send notification to friend via edge function
+  const handleSendFriendNotification = async (e: React.MouseEvent, entry: LeaderboardEntry) => {
     e.stopPropagation(); // Prevent dialog opening
     if (entry.friendUserId) {
-      // For testing: send a browser notification to show it works
-      sendNotification(
-        'Arkadaşın seni çağırıyor! 🎮',
-        `${userProfile?.display_name || 'Arkadaşın'} diyor: Gel başlayalım!`
-      );
-      toast({
-        title: "Bildirim Gönderildi! 🔔",
-        description: `${entry.name}'e bildirim gönderildi: "Gel başlayalım!"`,
-      });
+      setSendingNotification(entry.friendUserId);
+      try {
+        const { data, error } = await supabase.functions.invoke('send-notification', {
+          body: {
+            targetUserId: entry.friendUserId,
+            title: 'Arkadaşın seni çağırıyor! 🎮',
+            body: `${userProfile?.display_name || 'Arkadaşın'} diyor: Gel başlayalım!`,
+            senderName: userProfile?.display_name || 'Arkadaş'
+          }
+        });
+
+        if (error) {
+          console.error('Error sending notification:', error);
+          toast({
+            title: "Hata",
+            description: "Bildirim gönderilemedi",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Bildirim Gönderildi! 🔔",
+            description: `${entry.name}'e bildirim gönderildi: "Gel başlayalım!"`,
+          });
+        }
+      } catch (err) {
+        console.error('Error:', err);
+        toast({
+          title: "Hata",
+          description: "Bildirim gönderilemedi",
+          variant: "destructive"
+        });
+      } finally {
+        setSendingNotification(null);
+      }
     }
   };
 
@@ -499,18 +551,10 @@ const Leaderboard = () => {
     return 'bg-red-500/10 border-red-500/30';
   };
 
-  const timeRemaining = useMemo(() => {
-    const endDate = new Date(periodStart);
-    endDate.setDate(endDate.getDate() + 3);
-    const diff = endDate.getTime() - simulatedTime.getTime();
-    
-    if (diff <= 0) return '0s 0dk';
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}s ${minutes}dk`;
-  }, [periodStart, simulatedTime]);
+  // Format time remaining for display
+  const formatTimeRemaining = () => {
+    return `${timeRemaining.hours}s ${timeRemaining.minutes}dk`;
+  };
 
   if (!user) {
     return (
@@ -557,28 +601,7 @@ const Leaderboard = () => {
           <div className="flex justify-between items-center">
             <div>
               <p className="text-sm opacity-80">Kalan Süre</p>
-              <div className="flex items-center gap-2">
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-6 w-6 p-0 text-white hover:bg-white/20"
-                  onClick={handleSubtractHour}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <p className="text-xl font-bold">{timeRemaining}</p>
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  className="h-6 w-6 p-0 text-white hover:bg-white/20"
-                  onClick={handleAddHour}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-              {simulatedHoursOffset > 0 && (
-                <p className="text-xs opacity-60">+{simulatedHoursOffset} saat simülasyon</p>
-              )}
+              <p className="text-xl font-bold">{formatTimeRemaining()}</p>
             </div>
             <div className="text-right">
               <p className="text-sm opacity-80">Senin XP</p>

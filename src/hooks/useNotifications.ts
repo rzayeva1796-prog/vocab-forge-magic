@@ -34,8 +34,28 @@ export const useNotifications = () => {
     return false;
   };
 
-  const saveNotificationPreference = (enabled: boolean) => {
+  const saveNotificationPreference = async (enabled: boolean) => {
     localStorage.setItem(NOTIFICATION_ENABLED_KEY, JSON.stringify(enabled));
+    
+    // Also save to database
+    if (user) {
+      const { data: existing } = await supabase
+        .from('notification_settings')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (existing) {
+        await supabase
+          .from('notification_settings')
+          .update({ push_enabled: enabled })
+          .eq('user_id', user.id);
+      } else {
+        await supabase
+          .from('notification_settings')
+          .insert({ user_id: user.id, push_enabled: enabled });
+      }
+    }
   };
 
   const getNotificationPreference = () => {
@@ -102,6 +122,53 @@ export const useNotifications = () => {
       console.error('Error updating last activity:', error);
     }
   };
+
+  // Poll for pending notifications from the database
+  const checkPendingNotifications = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data: notifications, error } = await supabase
+        .from('pending_notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching pending notifications:', error);
+        return;
+      }
+
+      if (notifications && notifications.length > 0) {
+        // Show each notification
+        for (const notif of notifications) {
+          sendNotification(notif.title, notif.body);
+          
+          // Mark as read
+          await supabase
+            .from('pending_notifications')
+            .update({ read: true })
+            .eq('id', notif.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking pending notifications:', error);
+    }
+  }, [user, sendNotification]);
+
+  // Poll for pending notifications every 10 seconds
+  useEffect(() => {
+    if (!user || !getNotificationPreference()) return;
+    
+    // Check immediately
+    checkPendingNotifications();
+    
+    // Then poll every 10 seconds
+    const interval = setInterval(checkPendingNotifications, 10000);
+    
+    return () => clearInterval(interval);
+  }, [user, checkPendingNotifications]);
 
   const checkInactivityNotification = useCallback(async () => {
     if (!user) return;
@@ -178,6 +245,7 @@ export const useNotifications = () => {
     getNotificationPreference,
     saveNotificationSound,
     getNotificationSound,
-    playNotificationSound
+    playNotificationSound,
+    checkPendingNotifications
   };
 };
