@@ -161,10 +161,13 @@ const Words = () => {
       });
 
       // Sort by display_order within each section and calculate unlock
+      // Admin users always have all subsections unlocked
       Object.keys(subsectionsBySectionId).forEach(sectionId => {
         const subs = subsectionsBySectionId[sectionId].sort((a, b) => a.display_order - b.display_order);
         subs.forEach((sub, idx) => {
-          if (idx === 0) {
+          if (userIsAdmin) {
+            sub.unlocked = true; // Admin always has access
+          } else if (idx === 0) {
             sub.unlocked = true;
           } else {
             const prevSub = subs[idx - 1];
@@ -199,7 +202,9 @@ const Words = () => {
   };
 
   // Check if section is locked (previous section must have 5 stars)
+  // Admin users always have all sections unlocked
   const isSectionLocked = (sectionIdx: number): boolean => {
+    if (isAdmin) return false; // Admin always has access
     if (sectionIdx === 0) return false;
     const prevSection = sections[sectionIdx - 1];
     return (prevSection?.min_star_rating ?? 0) < 5;

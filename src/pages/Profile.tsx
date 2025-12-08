@@ -55,6 +55,7 @@ const Profile = () => {
   const [pendingRequests, setPendingRequests] = useState<Friendship[]>([]);
   const [uploading, setUploading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -69,8 +70,20 @@ const Profile = () => {
       handleDailyLogin();
       updateLastActivity();
       setNotificationsEnabled(getNotificationPreference());
+      checkAdminStatus();
     }
   }, [user, authLoading]);
+
+  const checkAdminStatus = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("role", "admin")
+      .single();
+    setIsAdmin(!!data);
+  };
 
   const handleDailyLogin = async () => {
     const result = await checkAndUpdateDailyLogin();
@@ -448,8 +461,8 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* Test Notification Button */}
-            {notificationsEnabled && (
+            {/* Test Notification Button - Only visible to admin */}
+            {notificationsEnabled && isAdmin && (
               <Button 
                 variant="outline" 
                 className="w-full"
