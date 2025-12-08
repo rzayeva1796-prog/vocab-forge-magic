@@ -34,13 +34,28 @@ const Index = () => {
   const [allWords, setAllWords] = useState<Word[]>([]);
   const [learnedWords, setLearnedWords] = useState<Word[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
 
-  // Load vocabulary from CSV on mount
+  // Load vocabulary from CSV on mount and check admin status
   useEffect(() => {
     loadVocabularyFromCSV();
     loadLearnedWords();
+    checkAdminStatus();
   }, []);
+
+  const checkAdminStatus = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+      setIsAdmin(!!data);
+    }
+  };
 
   const loadVocabularyFromCSV = async () => {
     try {
@@ -332,10 +347,13 @@ const Index = () => {
             <GraduationCap className="w-8 h-8" />
             Sözlük
           </h1>
-          <div className="flex gap-2">
-            <LearnedWordsDrawer words={learnedWords} onRemove={handleRemoveLearned} onWordsAdded={loadLearnedWords} />
-            <AllWordsDrawer words={allWords} />
-          </div>
+          {/* Only show drawer buttons for admin */}
+          {isAdmin && (
+            <div className="flex gap-2">
+              <LearnedWordsDrawer words={learnedWords} onRemove={handleRemoveLearned} onWordsAdded={loadLearnedWords} />
+              <AllWordsDrawer words={allWords} />
+            </div>
+          )}
         </div>
 
         {/* Input Controls */}

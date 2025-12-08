@@ -434,11 +434,28 @@ const Leaderboard = () => {
   }, [userLeague, friends.length, timeRemaining]);
 
   // Build leaderboard entries
+  // Check if current user is admin (to hide from leaderboard)
+  const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
+  
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+      setCurrentUserIsAdmin(!!data);
+    };
+    checkAdmin();
+  }, [user]);
+
   const leaderboardEntries = useMemo(() => {
     const entries: LeaderboardEntry[] = [];
     
-    // Add current user
-    if (userProfile) {
+    // Add current user only if not admin
+    if (userProfile && !currentUserIsAdmin) {
       entries.push({
         id: user?.id || '',
         name: userProfile.display_name || 'Sen',
@@ -487,7 +504,7 @@ const Leaderboard = () => {
     previousPositionRef.current = currentPosition;
     
     return entries;
-  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
+  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours, currentUserIsAdmin]);
 
   // Handle friend click for comparison
   const handleFriendClick = (entry: LeaderboardEntry) => {

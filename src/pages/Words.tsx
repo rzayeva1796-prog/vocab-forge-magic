@@ -12,6 +12,7 @@ interface Section {
   id: string;
   name: string;
   display_order: number;
+  min_star_rating?: number;
 }
 
 interface Subsection {
@@ -23,7 +24,7 @@ interface Subsection {
   package_name?: string;
   word_count?: number;
   unlocked?: boolean;
-  stars_progress?: { total: number; with3Stars: number };
+  min_star_rating?: number;
 }
 
 interface WordPackage {
@@ -71,7 +72,6 @@ const Words = () => {
         .order("display_order", { ascending: true });
 
       if (sectionsError) throw sectionsError;
-      setSections(sectionsData || []);
 
       // Auto-expand first section
       if (sectionsData && sectionsData.length > 0) {
@@ -95,11 +95,11 @@ const Words = () => {
 
       if (subsectionsError) throw subsectionsError;
 
-      // Enrich subsections with package info and progress
+      // Enrich subsections with package info and calculate min star rating
       const enrichedSubsections = await Promise.all(
         (subsectionsData || []).map(async (sub) => {
           if (!sub.package_id) {
-            return { ...sub, package_name: undefined, word_count: 0, unlocked: true, stars_progress: { total: 0, with3Stars: 0 } };
+            return { ...sub, package_name: undefined, word_count: 0, unlocked: true, min_star_rating: 0 };
           }
 
           // Get package info
@@ -112,7 +112,7 @@ const Words = () => {
             .eq("package_id", sub.package_id);
 
           const wordIds = (words || []).map(w => w.id);
-          let with3Stars = 0;
+          let minStarRating = 0;
 
           if (user && wordIds.length > 0) {
             const { data: progressData } = await supabase
@@ -121,28 +121,88 @@ const Words = () => {
               .eq("user_id", user.id)
               .in("word_id", wordIds);
 
-            with3Stars = (progressData || []).filter(p => p.star_rating >= 3).length;
+            // Calculate minimum star rating across all words
+            if (progressData && progressData.length > 0) {
+              // Get ratings for all words, defaulting to 0 for words without progress
+              const ratings = wordIds.map(wordId => {
+                const progress = progressData.find(p => p.star_rating !== undefined);
+                return progress ? progress.star_rating : 0;
+              });
+              
+              // If not all words have progress, min is 0
+              if (progressData.length < wordIds.length) {
+                minStarRating = 0;
+              } else {
+                // Find the minimum star rating
+                const allRatings = progressData.map(p => p.star_rating);
+                minStarRating = Math.min(...allRatings);
+              }
+            }
           }
-
-          // Determine unlock status (admin always unlocked)
-          const unlocked = userIsAdmin || true; // For now all unlocked, can add logic later
 
           return {
             ...sub,
             package_name: pkg?.name,
             word_count: wordIds.length,
-            unlocked,
-            stars_progress: { total: wordIds.length, with3Stars },
+            unlocked: true, // Will be calculated below
+            min_star_rating: minStarRating,
           };
         })
       );
 
-      setSubsections(enrichedSubsections);
+      // Calculate unlock status for subsections
+      // First subsection is always unlocked, others unlock when previous has >= 3 stars
+      const subsectionsBySectionId: { [key: string]: typeof enrichedSubsections } = {};
+      enrichedSubsections.forEach(sub => {
+        if (!subsectionsBySectionId[sub.section_id]) {
+          subsectionsBySectionId[sub.section_id] = [];
+        }
+        subsectionsBySectionId[sub.section_id].push(sub);
+      });
+
+      // Sort by display_order within each section and calculate unlock
+      Object.keys(subsectionsBySectionId).forEach(sectionId => {
+        const subs = subsectionsBySectionId[sectionId].sort((a, b) => a.display_order - b.display_order);
+        subs.forEach((sub, idx) => {
+          if (idx === 0) {
+            sub.unlocked = true;
+          } else {
+            const prevSub = subs[idx - 1];
+            sub.unlocked = (prevSub.min_star_rating ?? 0) >= 3;
+          }
+        });
+      });
+
+      // Flatten back
+      const finalSubsections = Object.values(subsectionsBySectionId).flat();
+      setSubsections(finalSubsections);
+
+      // Calculate section min star rating and lock status
+      const sectionsWithStars = (sectionsData || []).map((section, sectionIdx) => {
+        const sectionSubs = finalSubsections.filter(s => s.section_id === section.id);
+        const minSubRating = sectionSubs.length > 0 
+          ? Math.min(...sectionSubs.map(s => s.min_star_rating ?? 0))
+          : 0;
+        
+        return {
+          ...section,
+          min_star_rating: minSubRating,
+        };
+      });
+
+      setSections(sectionsWithStars);
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Check if section is locked (previous section must have 5 stars)
+  const isSectionLocked = (sectionIdx: number): boolean => {
+    if (sectionIdx === 0) return false;
+    const prevSection = sections[sectionIdx - 1];
+    return (prevSection?.min_star_rating ?? 0) < 5;
   };
 
   const toggleSection = (sectionId: string) => {
@@ -182,7 +242,7 @@ const Words = () => {
         .single();
 
       if (error) throw error;
-      setSections(prev => [...prev, data]);
+      setSections(prev => [...prev, { ...data, min_star_rating: 0 }]);
       setExpandedSections(prev => new Set([...prev, data.id]));
       toast.success("Yeni bölüm eklendi");
     } catch (error) {
@@ -204,12 +264,16 @@ const Words = () => {
         .single();
 
       if (error) throw error;
-      setSubsections(prev => [...prev, { ...data, unlocked: true, stars_progress: { total: 0, with3Stars: 0 } }]);
+      setSubsections(prev => [...prev, { ...data, unlocked: true, min_star_rating: 0 }]);
       toast.success("Yeni alt bölüm eklendi");
     } catch (error) {
       console.error("Error adding subsection:", error);
       toast.error("Alt bölüm eklenemedi");
     }
+  };
+
+  const handleDeleteSubsection = (subsectionId: string) => {
+    setSubsections(prev => prev.filter(s => s.id !== subsectionId));
   };
 
   return (
@@ -235,12 +299,13 @@ const Words = () => {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {sections.map((section) => (
+            {sections.map((section, sectionIdx) => (
               <SectionCard
                 key={section.id}
                 section={section}
                 isAdmin={isAdmin}
                 isExpanded={expandedSections.has(section.id)}
+                isLocked={isSectionLocked(sectionIdx)}
                 onToggle={() => toggleSection(section.id)}
                 onUpdateName={handleUpdateSectionName}
               >
@@ -255,6 +320,7 @@ const Words = () => {
                         isAdmin={isAdmin}
                         availablePackages={packages}
                         onUpdate={loadData}
+                        onDelete={handleDeleteSubsection}
                       />
                     ))}
 
