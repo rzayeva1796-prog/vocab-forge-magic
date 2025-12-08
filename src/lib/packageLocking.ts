@@ -14,9 +14,23 @@ interface PackageProgress {
 }
 
 /**
+ * Check if a user has admin role
+ */
+async function checkIsAdmin(userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .single();
+  return !!data;
+}
+
+/**
  * Get all unlocked package IDs for a user
  * First package is always unlocked
  * Next packages unlock when ALL words in previous packages have 3+ stars
+ * Admin users have all packages unlocked
  */
 export async function getUnlockedPackageIds(userId: string | null): Promise<string[]> {
   // Get all packages ordered by display_order
@@ -27,6 +41,14 @@ export async function getUnlockedPackageIds(userId: string | null): Promise<stri
 
   if (packagesError || !packages || packages.length === 0) {
     return [];
+  }
+
+  // Check if user is admin - if so, return all package IDs
+  if (userId) {
+    const isAdmin = await checkIsAdmin(userId);
+    if (isAdmin) {
+      return packages.map(pkg => pkg.id);
+    }
   }
 
   // For each package, calculate progress

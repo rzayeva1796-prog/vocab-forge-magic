@@ -18,14 +18,32 @@ const Words = () => {
   const { user } = useAuth();
   const [packages, setPackages] = useState<WordPackage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     loadPackages();
   }, [user]);
 
+  const checkIsAdmin = async (userId: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .single();
+    return !!data;
+  };
+
   const loadPackages = async () => {
     setLoading(true);
     try {
+      // Check if user is admin
+      let userIsAdmin = false;
+      if (user) {
+        userIsAdmin = await checkIsAdmin(user.id);
+        setIsAdmin(userIsAdmin);
+      }
+
       // Get all packages ordered by display_order
       const { data: packagesData, error: packagesError } = await supabase
         .from("word_packages")
@@ -63,7 +81,7 @@ const Words = () => {
             name: pkg.name,
             display_order: pkg.display_order || index + 1,
             word_count: wordIds.length,
-            unlocked: false, // Will be calculated below
+            unlocked: userIsAdmin, // Admin users have all packages unlocked
             stars_progress: {
               total: wordIds.length,
               with3Stars: with3Stars
@@ -72,16 +90,16 @@ const Words = () => {
         })
       );
 
-      // Calculate unlock status: first package always unlocked
-      // Next package unlocked if ALL words in current package have 3+ stars
+      // Calculate unlock status for non-admin users
       const processedPackages = packagesWithProgress.map((pkg, index) => {
+        // Admin users already have unlocked: true
+        if (userIsAdmin) {
+          return pkg;
+        }
+        
         if (index === 0) {
           return { ...pkg, unlocked: true };
         }
-        
-        const previousPackage = packagesWithProgress[index - 1];
-        const prevAllWords3Stars = previousPackage.stars_progress.total > 0 && 
-          previousPackage.stars_progress.with3Stars >= previousPackage.stars_progress.total;
         
         // Check if all previous packages are completed
         let allPreviousCompleted = true;
