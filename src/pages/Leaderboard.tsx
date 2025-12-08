@@ -423,58 +423,49 @@ const Leaderboard = () => {
     return limitedEntries;
   }, [userProfile, userPeriodXp, allLeagueUsers, bots, user?.id, currentUserIsAdmin, selectedLeague, userLeague, simulatedHoursOffset, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
 
-  // Simulate league changes at period end
+  // Simulate league changes at period end by calling edge function
   const simulateLeagueChanges = async () => {
     if (!currentUserIsAdmin) return;
 
-    const displayLeague = selectedLeague;
-    const sortedEntries = [...leaderboardEntries];
-    
-    // Process promotions and demotions
-    for (let i = 0; i < sortedEntries.length; i++) {
-      const entry = sortedEntries[i];
-      const position = i + 1;
-      
-      let newLeague = displayLeague.id;
-      
-      if (position <= 4) {
-        // Promote (unless already Titan)
-        if (displayLeague.id !== 'titan') {
-          const currentIndex = LEAGUES.findIndex(l => l.id === displayLeague.id);
-          newLeague = LEAGUES[currentIndex + 1]?.id || displayLeague.id;
-        }
-      } else if (position >= 7) {
-        // Demote (positions 7-10 for a 10-person league, but we may have fewer)
-        // Using last 4 positions
-        if (position > sortedEntries.length - 4 && displayLeague.id !== 'bronze') {
-          const currentIndex = LEAGUES.findIndex(l => l.id === displayLeague.id);
-          newLeague = LEAGUES[currentIndex - 1]?.id || displayLeague.id;
-        }
-      }
-      
-      if (entry.isBot) {
-        // Update bot league in database (just the string value, not the enum)
-        await supabase
-          .from('leaderboard_bots')
-          .update({ current_league: newLeague, period_xp: 0 } as any)
-          .eq('id', entry.id);
-      } else if (!entry.isCurrentUser) {
-        // Update user league
-        await supabase
-          .from('user_leagues')
-          .update({ current_league: newLeague as any, period_xp: 0 })
-          .eq('user_id', entry.id);
-      }
-    }
-
     toast({
-      title: "Simülasyon Tamamlandı",
-      description: `${displayLeague.name} için lig değişiklikleri uygulandı.`,
+      title: "Simülasyon Başlatıldı",
+      description: "Lig değişiklikleri işleniyor...",
     });
 
-    // Reload data
-    await loadBots();
-    await loadLeaderboardData();
+    try {
+      // Call the edge function with force parameter to trigger transition
+      const { data, error } = await supabase.functions.invoke('league-transition', {
+        body: { forceTransition: true }
+      });
+
+      if (error) {
+        console.error('League transition error:', error);
+        toast({
+          title: "Hata",
+          description: "Lig değişiklikleri uygulanamadı",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('League transition result:', data);
+
+      toast({
+        title: "Simülasyon Tamamlandı ✓",
+        description: data?.message || "Tüm ligler için lig değişiklikleri uygulandı.",
+      });
+
+      // Reload data
+      await loadBots();
+      await loadLeaderboardData();
+    } catch (err) {
+      console.error('Error calling league-transition:', err);
+      toast({
+        title: "Hata",
+        description: "Bir hata oluştu",
+        variant: "destructive"
+      });
+    }
   };
 
   // Handle friend click for comparison

@@ -73,14 +73,24 @@ Deno.serve(async (req) => {
 
     console.log('Starting league transition check...');
 
+    // Check if force transition is requested (for admin simulation)
+    let forceTransition = false;
+    try {
+      const body = await req.json();
+      forceTransition = body?.forceTransition === true;
+      console.log('Force transition requested:', forceTransition);
+    } catch {
+      // No body or invalid JSON, continue with normal check
+    }
+
     const periodStart = getGlobalPeriodStart();
     const now = new Date();
     const hoursElapsed = Math.floor((now.getTime() - periodStart.getTime()) / (1000 * 60 * 60));
     
     console.log(`Period start: ${periodStart.toISOString()}, Hours elapsed: ${hoursElapsed}`);
 
-    // Check if we're at or past the 72-hour mark (period ended)
-    const periodEnded = hoursElapsed >= 72;
+    // Check if we're at or past the 72-hour mark (period ended) OR force transition is requested
+    const periodEnded = hoursElapsed >= 72 || forceTransition;
     
     // Get all admin user IDs to exclude them
     const { data: adminRoles } = await supabase
