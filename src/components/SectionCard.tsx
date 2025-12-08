@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Pencil, Check, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Pencil, Check, X, Star, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,11 @@ interface SectionCardProps {
     id: string;
     name: string;
     display_order: number;
+    min_star_rating?: number; // New: minimum star rating of subsections
   };
   isAdmin: boolean;
   isExpanded: boolean;
+  isLocked?: boolean;
   onToggle: () => void;
   onUpdateName: (id: string, name: string) => Promise<void>;
   children: React.ReactNode;
@@ -21,6 +23,7 @@ export const SectionCard = ({
   section,
   isAdmin,
   isExpanded,
+  isLocked = false,
   onToggle,
   onUpdateName,
   children,
@@ -28,6 +31,8 @@ export const SectionCard = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(section.name);
   const [saving, setSaving] = useState(false);
+
+  const starRating = section.min_star_rating ?? 0;
 
   const handleSave = async () => {
     if (editName.trim() === "") return;
@@ -42,15 +47,38 @@ export const SectionCard = ({
     setIsEditing(false);
   };
 
+  // Render 5 stars based on min_star_rating
+  const renderStars = () => {
+    return (
+      <div className="flex gap-0.5 ml-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={cn(
+              "w-4 h-4",
+              star <= starRating
+                ? "fill-yellow-400 text-yellow-400"
+                : "text-muted-foreground/30"
+            )}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="w-full rounded-xl bg-card border border-border overflow-hidden">
+    <div className={cn(
+      "w-full rounded-xl bg-card border border-border overflow-hidden",
+      isLocked && !isAdmin && "opacity-60"
+    )}>
       {/* Section Header */}
       <div
         className={cn(
           "flex items-center justify-between p-4 cursor-pointer transition-colors",
-          "hover:bg-muted/50"
+          "hover:bg-muted/50",
+          isLocked && !isAdmin && "cursor-not-allowed"
         )}
-        onClick={() => !isEditing && onToggle()}
+        onClick={() => !isEditing && !isLocked && onToggle()}
       >
         {isEditing ? (
           <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -73,7 +101,9 @@ export const SectionCard = ({
           </div>
         ) : (
           <div className="flex items-center gap-2">
+            {isLocked && !isAdmin && <Lock className="w-4 h-4 text-muted-foreground" />}
             <h2 className="text-lg font-bold text-foreground">{section.name}</h2>
+            {renderStars()}
             {isAdmin && (
               <Button
                 size="icon"

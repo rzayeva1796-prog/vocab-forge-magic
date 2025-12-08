@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Lock, Star, Plus, ImageIcon } from "lucide-react";
+import { Lock, Star, Plus, ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,12 +18,13 @@ interface SubsectionCardProps {
     package_name?: string;
     word_count?: number;
     unlocked?: boolean;
-    stars_progress?: { total: number; with3Stars: number };
+    min_star_rating?: number; // New: minimum star rating of words in package
   };
   index: number;
   isAdmin: boolean;
   availablePackages: { id: string; name: string }[];
   onUpdate: () => void;
+  onDelete?: (id: string) => void;
 }
 
 export const SubsectionCard = ({
@@ -32,19 +33,19 @@ export const SubsectionCard = ({
   isAdmin,
   availablePackages,
   onUpdate,
+  onDelete,
 }: SubsectionCardProps) => {
   const navigate = useNavigate();
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const progress = subsection.stars_progress?.total
-    ? (subsection.stars_progress.with3Stars / subsection.stars_progress.total) * 100
-    : 0;
-
+  const starRating = subsection.min_star_rating ?? 0;
   const isLeft = index % 2 === 0;
 
   const handleClick = () => {
@@ -133,6 +134,45 @@ export const SubsectionCard = ({
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase
+        .from("subsections")
+        .delete()
+        .eq("id", subsection.id);
+
+      if (error) throw error;
+      toast.success("Alt bölüm silindi");
+      setShowDeleteDialog(false);
+      onDelete?.(subsection.id);
+    } catch (error) {
+      console.error("Error deleting subsection:", error);
+      toast.error("Alt bölüm silinemedi");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Render 5 stars based on min_star_rating
+  const renderStars = () => {
+    return (
+      <div className="flex gap-0.5 mt-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Star
+            key={star}
+            className={cn(
+              "w-3 h-3",
+              star <= starRating
+                ? "fill-yellow-400 text-yellow-400"
+                : "text-muted-foreground/30"
+            )}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <>
       <div
@@ -152,78 +192,50 @@ export const SubsectionCard = ({
         )}
 
         {/* Main circle button */}
-        <button
-          disabled={!isAdmin && (!subsection.package_id || !subsection.unlocked)}
-          onClick={handleClick}
-          className={cn(
-            "relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300",
-            subsection.unlocked || isAdmin
-              ? "bg-muted hover:bg-muted/80 cursor-pointer shadow-lg hover:scale-105"
-              : "bg-muted/50 cursor-not-allowed opacity-60"
-          )}
-        >
-          {subsection.icon_url ? (
-            <div className="relative w-full h-full">
-              <img
-                src={subsection.icon_url}
-                alt="icon"
-                className="w-full h-full rounded-full object-cover"
-              />
-              {isAdmin && (
-                <button
-                  onClick={handleIconClick}
-                  className="absolute inset-0 bg-black/50 rounded-full opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity"
-                >
-                  <ImageIcon className="w-6 h-6 text-white" />
-                </button>
-              )}
-            </div>
-          ) : !subsection.package_id ? (
-            <Plus className="w-8 h-8 text-muted-foreground" />
-          ) : !subsection.unlocked && !isAdmin ? (
-            <Lock className="w-8 h-8 text-muted-foreground" />
-          ) : (
-            <div
-              className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center"
-              onClick={isAdmin ? handleIconClick : undefined}
-            >
-              {isAdmin && <ImageIcon className="w-6 h-6 text-primary" />}
-            </div>
-          )}
-
-          {/* Progress ring */}
-          {(subsection.unlocked || isAdmin) && progress > 0 && (
-            <svg className="absolute inset-0 -rotate-90 w-20 h-20" viewBox="0 0 80 80">
-              <circle
-                cx="40"
-                cy="40"
-                r="36"
-                fill="none"
-                stroke="hsl(var(--primary))"
-                strokeWidth="4"
-                strokeDasharray={`${(progress / 100) * 226} 226`}
-                className="transition-all duration-500"
-              />
-            </svg>
-          )}
-
-          {/* Star indicators */}
-          {(subsection.unlocked || isAdmin) && subsection.package_id && (
-            <div className="absolute -bottom-2 flex gap-0.5">
-              {[1, 2, 3].map((star) => (
-                <Star
-                  key={star}
-                  className={cn(
-                    "w-4 h-4",
-                    progress >= (star / 3) * 100
-                      ? "fill-yellow-400 text-yellow-400"
-                      : "text-muted-foreground/30"
-                  )}
+        <div className="flex flex-col items-center">
+          <button
+            disabled={!isAdmin && (!subsection.package_id || !subsection.unlocked)}
+            onClick={handleClick}
+            className={cn(
+              "relative w-20 h-20 rounded-full flex items-center justify-center transition-all duration-300",
+              subsection.unlocked || isAdmin
+                ? "bg-muted hover:bg-muted/80 cursor-pointer shadow-lg hover:scale-105"
+                : "bg-muted/50 cursor-not-allowed opacity-60"
+            )}
+          >
+            {subsection.icon_url ? (
+              <div className="relative w-full h-full">
+                <img
+                  src={subsection.icon_url}
+                  alt="icon"
+                  className="w-full h-full rounded-full object-cover"
                 />
-              ))}
-            </div>
-          )}
-        </button>
+                {isAdmin && (
+                  <button
+                    onClick={handleIconClick}
+                    className="absolute inset-0 bg-black/50 rounded-full opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity"
+                  >
+                    <ImageIcon className="w-6 h-6 text-white" />
+                  </button>
+                )}
+              </div>
+            ) : !subsection.package_id ? (
+              <Plus className="w-8 h-8 text-muted-foreground" />
+            ) : !subsection.unlocked && !isAdmin ? (
+              <Lock className="w-8 h-8 text-muted-foreground" />
+            ) : (
+              <div
+                className="w-full h-full rounded-full bg-primary/20 flex items-center justify-center"
+                onClick={isAdmin ? handleIconClick : undefined}
+              >
+                {isAdmin && <ImageIcon className="w-6 h-6 text-primary" />}
+              </div>
+            )}
+          </button>
+
+          {/* 5-star rating display under the icon */}
+          {subsection.package_id && (subsection.unlocked || isAdmin) && renderStars()}
+        </div>
 
         {/* Package name and info */}
         <div className={cn("flex flex-col", isLeft ? "items-start" : "items-end")}>
@@ -240,10 +252,21 @@ export const SubsectionCard = ({
               {subsection.word_count} kelime
             </span>
           )}
-          {(subsection.unlocked || isAdmin) && subsection.stars_progress && (
-            <span className="text-xs text-primary">
-              {subsection.stars_progress.with3Stars}/{subsection.stars_progress.total} ★
-            </span>
+          
+          {/* Admin delete button */}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10 mt-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowDeleteDialog(true);
+              }}
+            >
+              <Trash2 className="w-3 h-3 mr-1" />
+              Sil
+            </Button>
           )}
         </div>
       </div>
@@ -295,6 +318,37 @@ export const SubsectionCard = ({
             >
               {uploading ? "Yükleniyor..." : "Telefondan Resim Seç"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alt Bölümü Sil</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              "{subsection.package_name || "Bu alt bölüm"}" silinecek. Emin misiniz?
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteDialog(false)}
+                className="flex-1"
+              >
+                İptal
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1"
+              >
+                {deleting ? "Siliniyor..." : "Sil"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
