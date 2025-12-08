@@ -173,6 +173,7 @@ const Leaderboard = () => {
   const { notifyLeaderboardChange, sendNotification, getNotificationPreference } = useNotifications();
   const { showPositionLostNotification, isWithinNotificationHours } = useServiceWorker();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
+  const [selectedLeague, setSelectedLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]); // For admin league switching
   const [userPeriodXp, setUserPeriodXp] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingUntilPeriodEnd());
   const [leagueUsers, setLeagueUsers] = useState<any[]>([]);
@@ -183,6 +184,23 @@ const Leaderboard = () => {
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<LeaderboardEntry | null>(null);
   const [sendingNotification, setSendingNotification] = useState<string | null>(null);
+  const [allLeagueUsers, setAllLeagueUsers] = useState<{[key: string]: any[]}>({});
+  const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+      setCurrentUserIsAdmin(!!data);
+    };
+    checkAdmin();
+  }, [user]);
 
   // Update time remaining every second
   useEffect(() => {
@@ -244,6 +262,7 @@ const Leaderboard = () => {
       if (leagueData) {
         const league = LEAGUES.find(l => l.id === leagueData.current_league) || LEAGUES[0];
         setUserLeague(league);
+        setSelectedLeague(league); // Default selected league to user's league
         setUserPeriodXp(leagueData.period_xp || 0);
         
         // Check if period has ended (using global period timing)
@@ -319,6 +338,30 @@ const Leaderboard = () => {
             });
 
           setFriends(friendsInLeague);
+
+          // For admin: load all users in all leagues
+          if (currentUserIsAdmin) {
+            const allUsers: {[key: string]: any[]} = {};
+            for (const league of LEAGUES) {
+              const friendsInThisLeague = (friendLeagues || [])
+                .filter(fl => fl.current_league === league.id)
+                .map(fl => {
+                  const profile = fullFriendProfiles?.find(p => p.user_id === fl.user_id);
+                  return {
+                    ...fl,
+                    display_name: profile?.display_name,
+                    avatar_url: profile?.avatar_url,
+                    login_streak: profile?.login_streak,
+                    tetris_xp: profile?.tetris_xp,
+                    kart_xp: profile?.kart_xp,
+                    eslestirme_xp: profile?.eslestirme_xp,
+                    kitap_xp: profile?.kitap_xp
+                  };
+                });
+              allUsers[league.id] = friendsInThisLeague;
+            }
+            setAllLeagueUsers(allUsers);
+          }
         }
       }
 
@@ -363,19 +406,27 @@ const Leaderboard = () => {
     });
   };
 
-  // Generate bots for the league with global seed for consistency across ALL users
+  // Generate bots for the selected league with global seed for consistency across ALL users
   const generateBots = useMemo(() => {
-    const league = userLeague;
+    // Admin uses selectedLeague, regular users use their userLeague
+    const league = currentUserIsAdmin ? selectedLeague : userLeague;
     const globalPeriodStart = getGlobalPeriodStart();
     const now = new Date();
     const hoursElapsed = Math.min(72, Math.floor((now.getTime() - globalPeriodStart.getTime()) / (1000 * 60 * 60)));
     
+    // For admin viewing other leagues, calculate users in that league
+    const friendsInSelectedLeague = currentUserIsAdmin 
+      ? (allLeagueUsers[league.id] || []).length 
+      : friends.length;
+    
     // Calculate real users count (user + friends in league)
-    const realUsersCount = 1 + friends.length;
+    const realUsersCount = (currentUserIsAdmin && selectedLeague.id !== userLeague.id) 
+      ? friendsInSelectedLeague 
+      : 1 + friends.length;
     const botsNeeded = Math.max(0, 10 - realUsersCount);
     
     // Use GLOBAL seed for consistent bot generation across ALL users
-    const seed = GLOBAL_BOT_SEED + (userLeague.id.charCodeAt(0) * 1000); // Same bots per league
+    const seed = GLOBAL_BOT_SEED + (league.id.charCodeAt(0) * 1000); // Same bots per league
     const seededRandom = (index: number, offset: number = 0) => {
       const x = Math.sin(seed + index * 1000 + offset) * 10000;
       return x - Math.floor(x);
@@ -431,25 +482,9 @@ const Leaderboard = () => {
     }
     
     return bots;
-  }, [userLeague, friends.length, timeRemaining]);
+  }, [currentUserIsAdmin, selectedLeague, userLeague, friends.length, allLeagueUsers, timeRemaining]);
 
   // Build leaderboard entries
-  // Check if current user is admin (to hide from leaderboard)
-  const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
-  
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (!user) return;
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .single();
-      setCurrentUserIsAdmin(!!data);
-    };
-    checkAdmin();
-  }, [user]);
 
   const leaderboardEntries = useMemo(() => {
     const entries: LeaderboardEntry[] = [];
@@ -599,14 +634,37 @@ const Leaderboard = () => {
     );
   }
 
+  // Get display league for header (admin uses selectedLeague)
+  const displayLeague = currentUserIsAdmin ? selectedLeague : userLeague;
+
   return (
     <div className="min-h-screen bg-background pb-20 p-4">
+      {/* Admin League Selector */}
+      {currentUserIsAdmin && (
+        <div className="mb-4">
+          <p className="text-sm text-muted-foreground mb-2">Admin: Lig Seç</p>
+          <div className="flex flex-wrap gap-2">
+            {LEAGUES.map((league) => (
+              <Button
+                key={league.id}
+                variant={selectedLeague.id === league.id ? "default" : "outline"}
+                size="sm"
+                className={selectedLeague.id === league.id ? `bg-gradient-to-r ${league.color} text-white` : ''}
+                onClick={() => setSelectedLeague(league)}
+              >
+                {league.name.replace(' League', '')}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* League Header */}
-      <Card className={`mb-6 bg-gradient-to-r ${userLeague.color} text-white`}>
+      <Card className={`mb-6 bg-gradient-to-r ${displayLeague.color} text-white`}>
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <Trophy className="h-6 w-6" />
-            {userLeague.name}
+            {displayLeague.name}
           </CardTitle>
         </CardHeader>
         <CardContent>

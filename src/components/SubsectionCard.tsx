@@ -55,12 +55,12 @@ export const SubsectionCard = ({
         setShowPackageDialog(true);
       } else {
         // Navigate to game selection with this package
-        navigate(`/game-selection?package_id=${subsection.package_id}`);
+        navigate(`/game?package_id=${subsection.package_id}`);
       }
     } else {
       // User clicks to play
       if (subsection.package_id && subsection.unlocked) {
-        navigate(`/game-selection?package_id=${subsection.package_id}`);
+        navigate(`/game?package_id=${subsection.package_id}`);
       }
     }
   };
