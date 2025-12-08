@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.get-unlocked-words]
 verify_jwt = false
+
+[functions.league-transition]
+verify_jwt = false
