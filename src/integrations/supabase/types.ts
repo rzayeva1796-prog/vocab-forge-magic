@@ -253,6 +253,69 @@ export type Database = {
         }
         Relationships: []
       }
+      sections: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name?: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      subsections: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          icon_url: string | null
+          id: string
+          package_id: string | null
+          section_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          icon_url?: string | null
+          id?: string
+          package_id?: string | null
+          section_id: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          icon_url?: string | null
+          id?: string
+          package_id?: string | null
+          section_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subsections_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "word_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subsections_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_leagues: {
         Row: {
           created_at: string
