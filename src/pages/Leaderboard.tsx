@@ -407,17 +407,20 @@ const Leaderboard = () => {
     // Sort by XP descending
     entries.sort((a, b) => b.xp - a.xp);
     
+    // Limit to exactly 12 entries (for display purposes)
+    const limitedEntries = entries.slice(0, 12);
+    
     // Check for position change notification
-    const currentPosition = entries.findIndex(e => e.isCurrentUser) + 1;
+    const currentPosition = limitedEntries.findIndex(e => e.isCurrentUser) + 1;
     if (!currentUserIsAdmin && previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
-      const passer = entries[currentPosition - 2];
+      const passer = limitedEntries[currentPosition - 2];
       if (passer && getNotificationPreference() && isWithinNotificationHours()) {
         showPositionLostNotification(passer.name);
       }
     }
     previousPositionRef.current = currentPosition;
     
-    return entries;
+    return limitedEntries;
   }, [userProfile, userPeriodXp, allLeagueUsers, bots, user?.id, currentUserIsAdmin, selectedLeague, userLeague, simulatedHoursOffset, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
 
   // Simulate league changes at period end
