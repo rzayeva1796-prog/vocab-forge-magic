@@ -28,6 +28,18 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if user is admin
+    let isAdmin = false;
+    if (userId) {
+      const { data: adminCheck } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .single();
+      isAdmin = !!adminCheck;
+    }
+
     // Get all packages ordered by display_order
     const { data: packages, error: packagesError } = await supabase
       .from("word_packages")
@@ -40,12 +52,48 @@ serve(async (req) => {
 
     if (!packages || packages.length === 0) {
       return new Response(
-        JSON.stringify({ words: [], unlockedPackages: [] }),
+        JSON.stringify({ words: [], unlockedPackages: [], isAdmin }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Calculate progress for each package
+    // If admin, unlock all packages
+    if (isAdmin) {
+      const allPackageIds = packages.map((pkg: any) => pkg.id);
+      
+      // Build query for words
+      let wordsQuery = supabase
+        .from("learned_words")
+        .select("id, english, turkish, frequency_group, package_id, package_name");
+
+      if (packageId && packageId !== "all") {
+        wordsQuery = wordsQuery.eq("package_id", packageId);
+      } else {
+        wordsQuery = wordsQuery.in("package_id", allPackageIds);
+      }
+
+      const { data: words, error: wordsError } = await wordsQuery;
+
+      if (wordsError) {
+        throw new Error(`Failed to fetch words: ${wordsError.message}`);
+      }
+
+      return new Response(
+        JSON.stringify({
+          words: words || [],
+          unlockedPackages: packages.map((pkg: any) => ({
+            id: pkg.id,
+            name: pkg.name,
+            display_order: pkg.display_order
+          })),
+          totalUnlockedWords: (words || []).length,
+          isAdmin: true
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Calculate progress for each package (non-admin flow)
     const packageProgress: PackageProgress[] = await Promise.all(
       packages.map(async (pkg) => {
         const { data: words } = await supabase
