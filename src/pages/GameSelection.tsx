@@ -1,16 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Gamepad2, Zap, GitCompare, LogIn } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
 
 const GameSelection = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading } = useAuth();
+  
+  // Get package_id from URL if coming from Words page
+  const packageId = searchParams.get("package_id");
 
   const handleGameClick = (baseUrl: string) => {
     if (user) {
-      window.location.href = `${baseUrl}?user_id=${user.id}`;
+      let url = `${baseUrl}?user_id=${user.id}`;
+      if (packageId) {
+        url += `&package_id=${packageId}`;
+      }
+      window.location.href = url;
     } else {
       navigate("/auth");
     }

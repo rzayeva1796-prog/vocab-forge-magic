@@ -1,27 +1,47 @@
 import { useState, useEffect } from "react";
 import { BottomNavigation } from "@/components/BottomNavigation";
-import { PackageCard } from "@/components/PackageCard";
+import { SectionCard } from "@/components/SectionCard";
+import { SubsectionCard } from "@/components/SubsectionCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+interface Section {
+  id: string;
+  name: string;
+  display_order: number;
+}
+
+interface Subsection {
+  id: string;
+  section_id: string;
+  package_id: string | null;
+  icon_url: string | null;
+  display_order: number;
+  package_name?: string;
+  word_count?: number;
+  unlocked?: boolean;
+  stars_progress?: { total: number; with3Stars: number };
+}
 
 interface WordPackage {
   id: string;
   name: string;
-  display_order: number;
-  word_count: number;
-  unlocked: boolean;
-  stars_progress: { total: number; with3Stars: number };
 }
 
 const Words = () => {
   const { user } = useAuth();
+  const [sections, setSections] = useState<Section[]>([]);
+  const [subsections, setSubsections] = useState<Subsection[]>([]);
   const [packages, setPackages] = useState<WordPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    loadPackages();
+    loadData();
   }, [user]);
 
   const checkIsAdmin = async (userId: string): Promise<boolean> => {
@@ -34,7 +54,7 @@ const Words = () => {
     return !!data;
   };
 
-  const loadPackages = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
       // Check if user is admin
@@ -44,29 +64,57 @@ const Words = () => {
         setIsAdmin(userIsAdmin);
       }
 
-      // Get all packages ordered by display_order
+      // Load sections
+      const { data: sectionsData, error: sectionsError } = await supabase
+        .from("sections")
+        .select("*")
+        .order("display_order", { ascending: true });
+
+      if (sectionsError) throw sectionsError;
+      setSections(sectionsData || []);
+
+      // Auto-expand first section
+      if (sectionsData && sectionsData.length > 0) {
+        setExpandedSections(new Set([sectionsData[0].id]));
+      }
+
+      // Load all packages for selection
       const { data: packagesData, error: packagesError } = await supabase
         .from("word_packages")
-        .select("id, name, display_order")
+        .select("id, name")
         .order("display_order", { ascending: true });
 
       if (packagesError) throw packagesError;
+      setPackages(packagesData || []);
 
-      // For each package, calculate word count and star progress
-      const packagesWithProgress: WordPackage[] = await Promise.all(
-        (packagesData || []).map(async (pkg, index) => {
-          // Get all words in this package
+      // Load subsections
+      const { data: subsectionsData, error: subsectionsError } = await supabase
+        .from("subsections")
+        .select("*")
+        .order("display_order", { ascending: true });
+
+      if (subsectionsError) throw subsectionsError;
+
+      // Enrich subsections with package info and progress
+      const enrichedSubsections = await Promise.all(
+        (subsectionsData || []).map(async (sub) => {
+          if (!sub.package_id) {
+            return { ...sub, package_name: undefined, word_count: 0, unlocked: true, stars_progress: { total: 0, with3Stars: 0 } };
+          }
+
+          // Get package info
+          const pkg = packagesData?.find(p => p.id === sub.package_id);
+
+          // Get word count
           const { data: words } = await supabase
             .from("learned_words")
             .select("id")
-            .eq("package_id", pkg.id);
+            .eq("package_id", sub.package_id);
 
           const wordIds = (words || []).map(w => w.id);
-          
           let with3Stars = 0;
-          
+
           if (user && wordIds.length > 0) {
-            // Get user's star progress for these words
             const { data: progressData } = await supabase
               .from("user_word_progress")
               .select("star_rating")
@@ -76,50 +124,91 @@ const Words = () => {
             with3Stars = (progressData || []).filter(p => p.star_rating >= 3).length;
           }
 
+          // Determine unlock status (admin always unlocked)
+          const unlocked = userIsAdmin || true; // For now all unlocked, can add logic later
+
           return {
-            id: pkg.id,
-            name: pkg.name,
-            display_order: pkg.display_order || index + 1,
+            ...sub,
+            package_name: pkg?.name,
             word_count: wordIds.length,
-            unlocked: userIsAdmin, // Admin users have all packages unlocked
-            stars_progress: {
-              total: wordIds.length,
-              with3Stars: with3Stars
-            }
+            unlocked,
+            stars_progress: { total: wordIds.length, with3Stars },
           };
         })
       );
 
-      // Calculate unlock status for non-admin users
-      const processedPackages = packagesWithProgress.map((pkg, index) => {
-        // Admin users already have unlocked: true
-        if (userIsAdmin) {
-          return pkg;
-        }
-        
-        if (index === 0) {
-          return { ...pkg, unlocked: true };
-        }
-        
-        // Check if all previous packages are completed
-        let allPreviousCompleted = true;
-        for (let i = 0; i < index; i++) {
-          const prevPkg = packagesWithProgress[i];
-          if (prevPkg.stars_progress.total === 0 || 
-              prevPkg.stars_progress.with3Stars < prevPkg.stars_progress.total) {
-            allPreviousCompleted = false;
-            break;
-          }
-        }
-        
-        return { ...pkg, unlocked: allPreviousCompleted };
-      });
-
-      setPackages(processedPackages);
+      setSubsections(enrichedSubsections);
     } catch (error) {
-      console.error("Error loading packages:", error);
+      console.error("Error loading data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
+  const handleUpdateSectionName = async (sectionId: string, name: string) => {
+    try {
+      const { error } = await supabase
+        .from("sections")
+        .update({ name })
+        .eq("id", sectionId);
+
+      if (error) throw error;
+      setSections(prev => prev.map(s => s.id === sectionId ? { ...s, name } : s));
+      toast.success("Bölüm adı güncellendi");
+    } catch (error) {
+      console.error("Error updating section name:", error);
+      toast.error("Bölüm adı güncellenemedi");
+    }
+  };
+
+  const handleAddSection = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("sections")
+        .insert({ name: "Yeni Bölüm", display_order: sections.length })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setSections(prev => [...prev, data]);
+      setExpandedSections(prev => new Set([...prev, data.id]));
+      toast.success("Yeni bölüm eklendi");
+    } catch (error) {
+      console.error("Error adding section:", error);
+      toast.error("Bölüm eklenemedi");
+    }
+  };
+
+  const handleAddSubsection = async (sectionId: string) => {
+    try {
+      const sectionSubs = subsections.filter(s => s.section_id === sectionId);
+      const { data, error } = await supabase
+        .from("subsections")
+        .insert({ 
+          section_id: sectionId, 
+          display_order: sectionSubs.length 
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      setSubsections(prev => [...prev, { ...data, unlocked: true, stars_progress: { total: 0, with3Stars: 0 } }]);
+      toast.success("Yeni alt bölüm eklendi");
+    } catch (error) {
+      console.error("Error adding subsection:", error);
+      toast.error("Alt bölüm eklenemedi");
     }
   };
 
@@ -134,20 +223,64 @@ const Words = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
-        ) : packages.length === 0 ? (
+        ) : sections.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
-            <p>Henüz kelime paketi yok.</p>
-            <p className="text-sm mt-2">Sözlük bölümünden paket ekleyebilirsiniz.</p>
+            <p>Henüz bölüm yok.</p>
+            {isAdmin && (
+              <Button onClick={handleAddSection} className="mt-4">
+                <Plus className="w-4 h-4 mr-2" />
+                Bölüm Ekle
+              </Button>
+            )}
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-6">
-            {packages.map((pkg, index) => (
-              <PackageCard
-                key={pkg.id}
-                package={pkg}
-                index={index}
-              />
+          <div className="flex flex-col gap-4">
+            {sections.map((section) => (
+              <SectionCard
+                key={section.id}
+                section={section}
+                isAdmin={isAdmin}
+                isExpanded={expandedSections.has(section.id)}
+                onToggle={() => toggleSection(section.id)}
+                onUpdateName={handleUpdateSectionName}
+              >
+                <div className="flex flex-col items-center gap-6 py-4">
+                  {subsections
+                    .filter(sub => sub.section_id === section.id)
+                    .map((sub, index) => (
+                      <SubsectionCard
+                        key={sub.id}
+                        subsection={sub}
+                        index={index}
+                        isAdmin={isAdmin}
+                        availablePackages={packages}
+                        onUpdate={loadData}
+                      />
+                    ))}
+
+                  {/* Add subsection button for admin */}
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddSubsection(section.id)}
+                      className="mt-2"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Alt Bölüm Ekle
+                    </Button>
+                  )}
+                </div>
+              </SectionCard>
             ))}
+
+            {/* Add section button for admin */}
+            {isAdmin && (
+              <Button onClick={handleAddSection} variant="outline" className="w-full">
+                <Plus className="w-4 h-4 mr-2" />
+                Bölüm Ekle
+              </Button>
+            )}
           </div>
         )}
       </div>
