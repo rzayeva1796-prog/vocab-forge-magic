@@ -4,106 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trophy, TrendingUp, TrendingDown, Minus, Crown, Plus, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send } from "lucide-react";
+import { Trophy, TrendingUp, TrendingDown, Minus, Crown, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send, Clock, Plus, MinusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useServiceWorker } from "@/hooks/useServiceWorker";
 import { BottomNavigation } from "@/components/BottomNavigation";
+
 const LEAGUES = [
-  { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000 },
-  { id: 'silver', name: 'Silver League', color: 'from-gray-400 to-gray-600', minXp: 6000, maxXp: 12000 },
-  { id: 'gold', name: 'Gold League', color: 'from-yellow-400 to-yellow-600', minXp: 12000, maxXp: 18000 },
-  { id: 'platinum', name: 'Platinum League', color: 'from-cyan-300 to-cyan-500', minXp: 18000, maxXp: 24000 },
-  { id: 'emerald', name: 'Emerald League', color: 'from-emerald-400 to-emerald-600', minXp: 24000, maxXp: 30000 },
-  { id: 'diamond', name: 'Diamond League', color: 'from-blue-300 to-blue-500', minXp: 30000, maxXp: 36000 },
-  { id: 'sapphire', name: 'Sapphire League', color: 'from-indigo-400 to-indigo-600', minXp: 36000, maxXp: 42000 },
-  { id: 'ruby', name: 'Ruby League', color: 'from-red-400 to-red-600', minXp: 42000, maxXp: 48000 },
-  { id: 'obsidian', name: 'Obsidian League', color: 'from-slate-700 to-slate-900', minXp: 48000, maxXp: 54000 },
-  { id: 'titan', name: 'Titan League', color: 'from-purple-500 to-purple-700', minXp: 54000, maxXp: 60000 },
-];
-
-// Male names
-const MALE_NAMES = [
-  "Ahmet", "Mehmet", "Mustafa", "Ali", "Hüseyin", "Hasan", "Emre", "Can", "Burak", "Kaan",
-  "Berk", "Emir", "Yusuf", "Ömer", "Mert", "Arda", "Kerem", "Barış", "Cem", "Doruk",
-  "Eren", "Furkan", "Gökhan", "Halil", "İlker", "Kaya", "Levent", "Oğuz", "Onur", "Serkan"
-];
-
-// Female names
-const FEMALE_NAMES = [
-  "Ayşe", "Fatma", "Zeynep", "Elif", "Ece", "Selin", "Ceren", "Dilara", "İrem", "Defne",
-  "Ada", "Derin", "Asya", "Ela", "Lina", "Mira", "Nisa", "Pelin", "Sude", "Tuana",
-  "Yağmur", "Zehra", "Deniz", "Melis", "Beyza", "Büşra", "Damla", "Esra", "Gül", "Hazal"
-];
-
-// Male avatar URLs
-const MALE_AVATARS = [
-  "https://randomuser.me/api/portraits/men/1.jpg",
-  "https://randomuser.me/api/portraits/men/2.jpg",
-  "https://randomuser.me/api/portraits/men/3.jpg",
-  "https://randomuser.me/api/portraits/men/4.jpg",
-  "https://randomuser.me/api/portraits/men/5.jpg",
-  "https://randomuser.me/api/portraits/men/11.jpg",
-  "https://randomuser.me/api/portraits/men/12.jpg",
-  "https://randomuser.me/api/portraits/men/13.jpg",
-  "https://randomuser.me/api/portraits/men/14.jpg",
-  "https://randomuser.me/api/portraits/men/15.jpg",
-  "https://randomuser.me/api/portraits/men/21.jpg",
-  "https://randomuser.me/api/portraits/men/22.jpg",
-  "https://randomuser.me/api/portraits/men/23.jpg",
-  "https://randomuser.me/api/portraits/men/24.jpg",
-  "https://randomuser.me/api/portraits/men/25.jpg",
-  "https://randomuser.me/api/portraits/men/31.jpg",
-  "https://randomuser.me/api/portraits/men/32.jpg",
-  "https://randomuser.me/api/portraits/men/33.jpg",
-  "https://randomuser.me/api/portraits/men/34.jpg",
-  "https://randomuser.me/api/portraits/men/35.jpg",
-  "https://randomuser.me/api/portraits/men/41.jpg",
-  "https://randomuser.me/api/portraits/men/42.jpg",
-  "https://randomuser.me/api/portraits/men/43.jpg",
-  "https://randomuser.me/api/portraits/men/44.jpg",
-  "https://randomuser.me/api/portraits/men/45.jpg",
-  "https://randomuser.me/api/portraits/men/51.jpg",
-  "https://randomuser.me/api/portraits/men/52.jpg",
-  "https://randomuser.me/api/portraits/men/53.jpg",
-  "https://randomuser.me/api/portraits/men/54.jpg",
-  "https://randomuser.me/api/portraits/men/55.jpg",
-];
-
-// Female avatar URLs
-const FEMALE_AVATARS = [
-  "https://randomuser.me/api/portraits/women/1.jpg",
-  "https://randomuser.me/api/portraits/women/2.jpg",
-  "https://randomuser.me/api/portraits/women/3.jpg",
-  "https://randomuser.me/api/portraits/women/4.jpg",
-  "https://randomuser.me/api/portraits/women/5.jpg",
-  "https://randomuser.me/api/portraits/women/11.jpg",
-  "https://randomuser.me/api/portraits/women/12.jpg",
-  "https://randomuser.me/api/portraits/women/13.jpg",
-  "https://randomuser.me/api/portraits/women/14.jpg",
-  "https://randomuser.me/api/portraits/women/15.jpg",
-  "https://randomuser.me/api/portraits/women/21.jpg",
-  "https://randomuser.me/api/portraits/women/22.jpg",
-  "https://randomuser.me/api/portraits/women/23.jpg",
-  "https://randomuser.me/api/portraits/women/24.jpg",
-  "https://randomuser.me/api/portraits/women/25.jpg",
-  "https://randomuser.me/api/portraits/women/31.jpg",
-  "https://randomuser.me/api/portraits/women/32.jpg",
-  "https://randomuser.me/api/portraits/women/33.jpg",
-  "https://randomuser.me/api/portraits/women/34.jpg",
-  "https://randomuser.me/api/portraits/women/35.jpg",
-  "https://randomuser.me/api/portraits/women/41.jpg",
-  "https://randomuser.me/api/portraits/women/42.jpg",
-  "https://randomuser.me/api/portraits/women/43.jpg",
-  "https://randomuser.me/api/portraits/women/44.jpg",
-  "https://randomuser.me/api/portraits/women/45.jpg",
-  "https://randomuser.me/api/portraits/women/51.jpg",
-  "https://randomuser.me/api/portraits/women/52.jpg",
-  "https://randomuser.me/api/portraits/women/53.jpg",
-  "https://randomuser.me/api/portraits/women/54.jpg",
-  "https://randomuser.me/api/portraits/women/55.jpg",
+  { id: 'bronze', name: 'Bronze League', color: 'from-amber-700 to-amber-900', minXp: 3000, maxXp: 6000, order: 0 },
+  { id: 'silver', name: 'Silver League', color: 'from-gray-400 to-gray-600', minXp: 6000, maxXp: 12000, order: 1 },
+  { id: 'gold', name: 'Gold League', color: 'from-yellow-400 to-yellow-600', minXp: 12000, maxXp: 18000, order: 2 },
+  { id: 'platinum', name: 'Platinum League', color: 'from-cyan-300 to-cyan-500', minXp: 18000, maxXp: 24000, order: 3 },
+  { id: 'emerald', name: 'Emerald League', color: 'from-emerald-400 to-emerald-600', minXp: 24000, maxXp: 30000, order: 4 },
+  { id: 'diamond', name: 'Diamond League', color: 'from-blue-300 to-blue-500', minXp: 30000, maxXp: 36000, order: 5 },
+  { id: 'sapphire', name: 'Sapphire League', color: 'from-indigo-400 to-indigo-600', minXp: 36000, maxXp: 42000, order: 6 },
+  { id: 'ruby', name: 'Ruby League', color: 'from-red-400 to-red-600', minXp: 42000, maxXp: 48000, order: 7 },
+  { id: 'obsidian', name: 'Obsidian League', color: 'from-slate-700 to-slate-900', minXp: 48000, maxXp: 54000, order: 8 },
+  { id: 'titan', name: 'Titan League', color: 'from-purple-500 to-purple-700', minXp: 54000, maxXp: 60000, order: 9 },
 ];
 
 interface LeaderboardEntry {
@@ -120,41 +39,48 @@ interface LeaderboardEntry {
   eslestirme_xp?: number;
   kitap_xp?: number;
   friendUserId?: string;
+  daily_xp_rate?: number;
 }
 
-// Global seed for consistent bots across all users
-const GLOBAL_BOT_SEED = 1733600000000; // Fixed seed for all users
+interface Bot {
+  id: string;
+  name: string;
+  avatar_url: string | null;
+  current_league: string;
+  period_xp: number;
+  daily_xp_rate: number;
+}
 
 // Get the current 3-day period start time in UTC+4
-// Periods start at 00:00 UTC+4 and last 3 days
-const getGlobalPeriodStart = (): Date => {
+const getGlobalPeriodStart = (simulatedHoursOffset: number = 0): Date => {
   const now = new Date();
+  // Apply simulated hours offset
+  const adjustedNow = new Date(now.getTime() + simulatedHoursOffset * 60 * 60 * 1000);
   // Convert to UTC+4
-  const utc4Offset = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
-  const nowUtc4 = new Date(now.getTime() + utc4Offset);
+  const utc4Offset = 4 * 60 * 60 * 1000;
+  const nowUtc4 = new Date(adjustedNow.getTime() + utc4Offset);
   
   // Set to midnight UTC+4
   nowUtc4.setUTCHours(0, 0, 0, 0);
   
   // Find the start of the current 3-day period
-  // Using a fixed reference point: Jan 1, 2024 00:00 UTC+4
   const referenceDate = new Date('2024-01-01T00:00:00+04:00');
   const daysSinceReference = Math.floor((nowUtc4.getTime() - referenceDate.getTime()) / (1000 * 60 * 60 * 24));
   const periodNumber = Math.floor(daysSinceReference / 3);
   const periodStartDays = periodNumber * 3;
   
   const periodStart = new Date(referenceDate.getTime() + periodStartDays * 24 * 60 * 60 * 1000);
-  // Convert back from UTC+4 to local time for consistency
   return new Date(periodStart.getTime() - utc4Offset);
 };
 
 // Get time remaining until next period (at 00:00 UTC+4)
-const getTimeRemainingUntilPeriodEnd = (): { hours: number; minutes: number; seconds: number } => {
+const getTimeRemainingUntilPeriodEnd = (simulatedHoursOffset: number = 0): { hours: number; minutes: number; seconds: number } => {
   const now = new Date();
-  const periodStart = getGlobalPeriodStart();
+  const adjustedNow = new Date(now.getTime() + simulatedHoursOffset * 60 * 60 * 1000);
+  const periodStart = getGlobalPeriodStart(simulatedHoursOffset);
   const periodEnd = new Date(periodStart.getTime() + 3 * 24 * 60 * 60 * 1000);
   
-  const diff = periodEnd.getTime() - now.getTime();
+  const diff = periodEnd.getTime() - adjustedNow.getTime();
   
   if (diff <= 0) {
     return { hours: 0, minutes: 0, seconds: 0 };
@@ -173,18 +99,20 @@ const Leaderboard = () => {
   const { notifyLeaderboardChange, sendNotification, getNotificationPreference } = useNotifications();
   const { showPositionLostNotification, isWithinNotificationHours } = useServiceWorker();
   const [userLeague, setUserLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
-  const [selectedLeague, setSelectedLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]); // For admin league switching
+  const [selectedLeague, setSelectedLeague] = useState<typeof LEAGUES[0]>(LEAGUES[0]);
   const [userPeriodXp, setUserPeriodXp] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingUntilPeriodEnd());
+  const [simulatedHoursOffset, setSimulatedHoursOffset] = useState(0);
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingUntilPeriodEnd(0));
   const [leagueUsers, setLeagueUsers] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [friends, setFriends] = useState<any[]>([]);
+  const [allLeagueUsers, setAllLeagueUsers] = useState<{[key: string]: any[]}>({});
+  const [bots, setBots] = useState<Bot[]>([]);
   const [loading, setLoading] = useState(true);
   const previousPositionRef = useRef<number | null>(null);
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [selectedFriend, setSelectedFriend] = useState<LeaderboardEntry | null>(null);
   const [sendingNotification, setSendingNotification] = useState<string | null>(null);
-  const [allLeagueUsers, setAllLeagueUsers] = useState<{[key: string]: any[]}>({});
   const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
 
   // Check if current user is admin
@@ -205,10 +133,10 @@ const Leaderboard = () => {
   // Update time remaining every second
   useEffect(() => {
     const interval = setInterval(() => {
-      setTimeRemaining(getTimeRemainingUntilPeriodEnd());
+      setTimeRemaining(getTimeRemainingUntilPeriodEnd(simulatedHoursOffset));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [simulatedHoursOffset]);
 
   useEffect(() => {
     if (user) {
@@ -217,6 +145,20 @@ const Leaderboard = () => {
       setLoading(false);
     }
   }, [user]);
+
+  // Load bots from database
+  const loadBots = async () => {
+    const { data } = await supabase
+      .from('leaderboard_bots')
+      .select('*');
+    if (data) {
+      setBots(data as Bot[]);
+    }
+  };
+
+  useEffect(() => {
+    loadBots();
+  }, []);
 
   // Sync period_xp with total XP from profile
   const syncXpFromProfile = async () => {
@@ -232,7 +174,6 @@ const Leaderboard = () => {
       const totalXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
                       (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
       
-      // Update period_xp in user_leagues
       await supabase
         .from('user_leagues')
         .update({ period_xp: totalXp })
@@ -262,24 +203,21 @@ const Leaderboard = () => {
       if (leagueData) {
         const league = LEAGUES.find(l => l.id === leagueData.current_league) || LEAGUES[0];
         setUserLeague(league);
-        setSelectedLeague(league); // Default selected league to user's league
+        setSelectedLeague(league);
         setUserPeriodXp(leagueData.period_xp || 0);
         
-        // Check if period has ended (using global period timing)
-        const globalPeriodStart = getGlobalPeriodStart();
+        const globalPeriodStart = getGlobalPeriodStart(simulatedHoursOffset);
         const lastPeriodStart = new Date(leagueData.period_start_date);
         
-        // If the stored period start is from a previous period, reset
         if (globalPeriodStart.getTime() > lastPeriodStart.getTime()) {
           await handlePeriodEnd(leagueData);
         }
       } else {
-        // Create initial league entry with global period start
         await supabase.from('user_leagues').insert({
           user_id: user.id,
           current_league: 'bronze',
           period_xp: 0,
-          period_start_date: getGlobalPeriodStart().toISOString()
+          period_start_date: getGlobalPeriodStart(simulatedHoursOffset).toISOString()
         });
       }
 
@@ -292,80 +230,70 @@ const Leaderboard = () => {
       
       setUserProfile(profile);
 
-      // Get friends in same league
+      // Get all non-admin users in all leagues
+      const { data: allUserLeagues } = await supabase
+        .from('user_leagues')
+        .select('user_id, current_league, period_xp');
+
+      // Get admin user IDs to exclude them
+      const { data: adminRoles } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      const adminUserIds = new Set((adminRoles || []).map(r => r.user_id));
+      
+      // Filter out admin users
+      const nonAdminUserLeagues = (allUserLeagues || []).filter(ul => !adminUserIds.has(ul.user_id));
+
+      // Get all non-admin user profiles
+      const nonAdminUserIds = nonAdminUserLeagues.map(ul => ul.user_id);
+      const { data: allProfiles } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, avatar_url, login_streak, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
+        .in('user_id', nonAdminUserIds);
+
+      // Get friends
       const { data: friendships } = await supabase
         .from('friendships')
         .select('requester_id, addressee_id')
         .eq('status', 'accepted')
         .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`);
 
-      if (friendships) {
-        const friendIds = friendships.map(f => 
-          f.requester_id === user.id ? f.addressee_id : f.requester_id
-        );
+      const friendIds = (friendships || []).map(f => 
+        f.requester_id === user.id ? f.addressee_id : f.requester_id
+      );
 
-        if (friendIds.length > 0) {
-          const { data: friendLeagues } = await supabase
-            .from('user_leagues')
-            .select('user_id, current_league, period_xp')
-            .in('user_id', friendIds);
+      // Build league users map
+      const usersPerLeague: {[key: string]: any[]} = {};
+      LEAGUES.forEach(league => {
+        usersPerLeague[league.id] = nonAdminUserLeagues
+          .filter(ul => ul.current_league === league.id)
+          .map(ul => {
+            const profile = (allProfiles || []).find(p => p.user_id === ul.user_id);
+            const isFriend = friendIds.includes(ul.user_id);
+            return {
+              ...ul,
+              display_name: profile?.display_name,
+              avatar_url: profile?.avatar_url,
+              login_streak: profile?.login_streak,
+              tetris_xp: profile?.tetris_xp,
+              kart_xp: profile?.kart_xp,
+              eslestirme_xp: profile?.eslestirme_xp,
+              kitap_xp: profile?.kitap_xp,
+              isFriend,
+              isCurrentUser: ul.user_id === user.id
+            };
+          });
+      });
+      
+      setAllLeagueUsers(usersPerLeague);
 
-          const { data: friendProfiles } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, avatar_url')
-            .in('user_id', friendIds);
+      // Set friends in user's league
+      const friendsInLeague = usersPerLeague[leagueData?.current_league || 'bronze']
+        ?.filter(u => friendIds.includes(u.user_id) && u.user_id !== user.id) || [];
+      setFriends(friendsInLeague);
 
-          // Get full friend profiles with XP details
-          const { data: fullFriendProfiles } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, avatar_url, login_streak, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
-            .in('user_id', friendIds);
-
-          const friendsInLeague = (friendLeagues || [])
-            .filter(fl => fl.current_league === (leagueData?.current_league || 'bronze'))
-            .map(fl => {
-              const profile = fullFriendProfiles?.find(p => p.user_id === fl.user_id);
-              return {
-                ...fl,
-                display_name: profile?.display_name,
-                avatar_url: profile?.avatar_url,
-                login_streak: profile?.login_streak,
-                tetris_xp: profile?.tetris_xp,
-                kart_xp: profile?.kart_xp,
-                eslestirme_xp: profile?.eslestirme_xp,
-                kitap_xp: profile?.kitap_xp
-              };
-            });
-
-          setFriends(friendsInLeague);
-
-          // For admin: load all users in all leagues
-          if (currentUserIsAdmin) {
-            const allUsers: {[key: string]: any[]} = {};
-            for (const league of LEAGUES) {
-              const friendsInThisLeague = (friendLeagues || [])
-                .filter(fl => fl.current_league === league.id)
-                .map(fl => {
-                  const profile = fullFriendProfiles?.find(p => p.user_id === fl.user_id);
-                  return {
-                    ...fl,
-                    display_name: profile?.display_name,
-                    avatar_url: profile?.avatar_url,
-                    login_streak: profile?.login_streak,
-                    tetris_xp: profile?.tetris_xp,
-                    kart_xp: profile?.kart_xp,
-                    eslestirme_xp: profile?.eslestirme_xp,
-                    kitap_xp: profile?.kitap_xp
-                  };
-                });
-              allUsers[league.id] = friendsInThisLeague;
-            }
-            setAllLeagueUsers(allUsers);
-          }
-        }
-      }
-
-      setLeagueUsers([]);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
     } finally {
@@ -373,12 +301,14 @@ const Leaderboard = () => {
     }
   };
 
+  // Handle period end with league promotions/demotions
   const handlePeriodEnd = async (leagueData: any) => {
     if (!user) return;
     
-    const globalPeriodStart = getGlobalPeriodStart();
+    const globalPeriodStart = getGlobalPeriodStart(simulatedHoursOffset);
     
-    // Reset period XP in user_leagues
+    // Process league changes based on final standings
+    // This is simplified - in production you'd want a scheduled function
     await supabase
       .from('user_leagues')
       .update({
@@ -387,7 +317,6 @@ const Leaderboard = () => {
       })
       .eq('user_id', user.id);
     
-    // Also reset profile XP values
     await supabase
       .from('profiles')
       .update({
@@ -406,140 +335,144 @@ const Leaderboard = () => {
     });
   };
 
-  // Generate bots for the selected league with global seed for consistency across ALL users
-  const generateBots = useMemo(() => {
-    // Admin uses selectedLeague, regular users use their userLeague
-    const league = currentUserIsAdmin ? selectedLeague : userLeague;
-    const globalPeriodStart = getGlobalPeriodStart();
-    const now = new Date();
-    const hoursElapsed = Math.min(72, Math.floor((now.getTime() - globalPeriodStart.getTime()) / (1000 * 60 * 60)));
-    
-    // For admin viewing other leagues, calculate users in that league
-    const friendsInSelectedLeague = currentUserIsAdmin 
-      ? (allLeagueUsers[league.id] || []).length 
-      : friends.length;
-    
-    // Calculate real users count (user + friends in league)
-    const realUsersCount = (currentUserIsAdmin && selectedLeague.id !== userLeague.id) 
-      ? friendsInSelectedLeague 
-      : 1 + friends.length;
-    const botsNeeded = Math.max(0, 10 - realUsersCount);
-    
-    // Use GLOBAL seed for consistent bot generation across ALL users
-    const seed = GLOBAL_BOT_SEED + (league.id.charCodeAt(0) * 1000); // Same bots per league
-    const seededRandom = (index: number, offset: number = 0) => {
-      const x = Math.sin(seed + index * 1000 + offset) * 10000;
+  // Calculate bot XP based on elapsed hours
+  const calculateBotXp = (bot: Bot, hoursElapsed: number): number => {
+    const hourlyRate = bot.daily_xp_rate / 24;
+    // Add some variance
+    const seed = bot.id.charCodeAt(0) + bot.id.charCodeAt(1);
+    const seededRandom = (index: number) => {
+      const x = Math.sin(seed + index * 1000) * 10000;
       return x - Math.floor(x);
     };
     
-    const bots: LeaderboardEntry[] = [];
-    
-    for (let i = 0; i < botsNeeded; i++) {
-      // Determine gender based on seed (consistent per bot index)
-      const isMale = seededRandom(i, 500) > 0.5;
-      
-      // Get bot name based on gender
-      const names = isMale ? MALE_NAMES : FEMALE_NAMES;
-      const nameIndex = Math.floor(seededRandom(i) * names.length);
-      const name = names[nameIndex];
-      
-      // Get bot avatar based on gender (unique per bot)
-      const avatars = isMale ? MALE_AVATARS : FEMALE_AVATARS;
-      const avatarIndex = i % avatars.length; // Ensures unique avatars
-      const avatar = avatars[avatarIndex];
-      
-      // Calculate bot XP with variations
-      const botIndex = i;
-      const xpRange = league.maxXp - league.minXp;
-      const baseDaily = league.minXp + (xpRange / 10) * (botIndex + 1);
-      
-      // Daily variation ±10% (seeded)
-      const dailyVariation = 1 + (seededRandom(i, 200) * 0.2 - 0.1);
-      const adjustedDaily = baseDaily * dailyVariation;
-      
-      // Calculate hourly with ±20% variation but keep within daily bounds
-      const baseHourly = adjustedDaily / 24;
-      let totalXp = 0;
-      
-      for (let h = 0; h < hoursElapsed; h++) {
-        const hourlyVariation = 1 + (seededRandom(i * 100 + h, 300) * 0.4 - 0.2);
-        totalXp += baseHourly * hourlyVariation;
-      }
-      
-      // Cap at daily max with variation
-      const maxDays = hoursElapsed / 24;
-      const maxAllowed = adjustedDaily * maxDays;
-      totalXp = Math.min(totalXp, maxAllowed);
-      
-      bots.push({
-        id: `bot-${i}`,
-        name,
-        avatar_url: avatar,
-        xp: Math.floor(totalXp),
-        isBot: true,
-        isCurrentUser: false
-      });
+    let totalXp = 0;
+    for (let h = 0; h < hoursElapsed; h++) {
+      const variation = 1 + (seededRandom(h) * 0.4 - 0.2); // ±20% hourly variation
+      totalXp += hourlyRate * variation;
     }
     
-    return bots;
-  }, [currentUserIsAdmin, selectedLeague, userLeague, friends.length, allLeagueUsers, timeRemaining]);
+    return Math.floor(totalXp);
+  };
 
-  // Build leaderboard entries
-
+  // Build leaderboard entries with bots from database
   const leaderboardEntries = useMemo(() => {
     const entries: LeaderboardEntry[] = [];
+    const displayLeague = currentUserIsAdmin ? selectedLeague : userLeague;
     
-    // Add current user only if not admin
-    if (userProfile && !currentUserIsAdmin) {
-      entries.push({
-        id: user?.id || '',
-        name: userProfile.display_name || 'Sen',
-        avatar_url: userProfile.avatar_url,
-        xp: userPeriodXp,
-        isBot: false,
-        isCurrentUser: true
-      });
-    }
+    // Get hours elapsed in current period
+    const periodStart = getGlobalPeriodStart(simulatedHoursOffset);
+    const now = new Date();
+    const adjustedNow = new Date(now.getTime() + simulatedHoursOffset * 60 * 60 * 1000);
+    const hoursElapsed = Math.min(72, Math.floor((adjustedNow.getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
+
+    // Get users for the display league
+    const usersInLeague = allLeagueUsers[displayLeague.id] || [];
     
-    // Add friends with full XP details
-    friends.forEach(friend => {
+    usersInLeague.forEach(u => {
+      // Skip admin's own entry
+      if (u.user_id === user?.id && currentUserIsAdmin) return;
+      
       entries.push({
-        id: friend.user_id,
-        name: friend.display_name || 'Arkadaş',
-        avatar_url: friend.avatar_url,
-        xp: friend.period_xp || 0,
+        id: u.user_id,
+        name: u.display_name || (u.isCurrentUser ? 'Sen' : 'Kullanıcı'),
+        avatar_url: u.avatar_url,
+        xp: u.period_xp || 0,
         isBot: false,
-        isCurrentUser: false,
-        isFriend: true,
-        login_streak: friend.login_streak,
-        tetris_xp: friend.tetris_xp,
-        kart_xp: friend.kart_xp,
-        eslestirme_xp: friend.eslestirme_xp,
-        kitap_xp: friend.kitap_xp,
-        friendUserId: friend.user_id
+        isCurrentUser: u.isCurrentUser && !currentUserIsAdmin,
+        isFriend: u.isFriend,
+        login_streak: u.login_streak,
+        tetris_xp: u.tetris_xp,
+        kart_xp: u.kart_xp,
+        eslestirme_xp: u.eslestirme_xp,
+        kitap_xp: u.kitap_xp,
+        friendUserId: u.isFriend ? u.user_id : undefined
       });
     });
     
-    // Add bots
-    entries.push(...generateBots);
+    // Add bots for this league from database
+    const botsInLeague = bots.filter(b => b.current_league === displayLeague.id);
+    botsInLeague.forEach(bot => {
+      const botXp = calculateBotXp(bot, hoursElapsed);
+      entries.push({
+        id: bot.id,
+        name: bot.name,
+        avatar_url: bot.avatar_url,
+        xp: botXp,
+        isBot: true,
+        isCurrentUser: false,
+        daily_xp_rate: bot.daily_xp_rate
+      });
+    });
     
     // Sort by XP descending
     entries.sort((a, b) => b.xp - a.xp);
     
-    // Check for position change and notify immediately when detected
+    // Check for position change notification
     const currentPosition = entries.findIndex(e => e.isCurrentUser) + 1;
-    if (previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
-      // User dropped in position - someone passed them
-      const passer = entries[currentPosition - 2]; // The one who passed
+    if (!currentUserIsAdmin && previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
+      const passer = entries[currentPosition - 2];
       if (passer && getNotificationPreference() && isWithinNotificationHours()) {
-        // Send notification via Service Worker
         showPositionLostNotification(passer.name);
       }
     }
     previousPositionRef.current = currentPosition;
     
     return entries;
-  }, [userProfile, userPeriodXp, friends, generateBots, user?.id, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours, currentUserIsAdmin]);
+  }, [userProfile, userPeriodXp, allLeagueUsers, bots, user?.id, currentUserIsAdmin, selectedLeague, userLeague, simulatedHoursOffset, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
+
+  // Simulate league changes at period end
+  const simulateLeagueChanges = async () => {
+    if (!currentUserIsAdmin) return;
+
+    const displayLeague = selectedLeague;
+    const sortedEntries = [...leaderboardEntries];
+    
+    // Process promotions and demotions
+    for (let i = 0; i < sortedEntries.length; i++) {
+      const entry = sortedEntries[i];
+      const position = i + 1;
+      
+      let newLeague = displayLeague.id;
+      
+      if (position <= 4) {
+        // Promote (unless already Titan)
+        if (displayLeague.id !== 'titan') {
+          const currentIndex = LEAGUES.findIndex(l => l.id === displayLeague.id);
+          newLeague = LEAGUES[currentIndex + 1]?.id || displayLeague.id;
+        }
+      } else if (position >= 7) {
+        // Demote (positions 7-10 for a 10-person league, but we may have fewer)
+        // Using last 4 positions
+        if (position > sortedEntries.length - 4 && displayLeague.id !== 'bronze') {
+          const currentIndex = LEAGUES.findIndex(l => l.id === displayLeague.id);
+          newLeague = LEAGUES[currentIndex - 1]?.id || displayLeague.id;
+        }
+      }
+      
+      if (entry.isBot) {
+        // Update bot league in database (just the string value, not the enum)
+        await supabase
+          .from('leaderboard_bots')
+          .update({ current_league: newLeague, period_xp: 0 } as any)
+          .eq('id', entry.id);
+      } else if (!entry.isCurrentUser) {
+        // Update user league
+        await supabase
+          .from('user_leagues')
+          .update({ current_league: newLeague as any, period_xp: 0 })
+          .eq('user_id', entry.id);
+      }
+    }
+
+    toast({
+      title: "Simülasyon Tamamlandı",
+      description: `${displayLeague.name} için lig değişiklikleri uygulandı.`,
+    });
+
+    // Reload data
+    await loadBots();
+    await loadLeaderboardData();
+  };
 
   // Handle friend click for comparison
   const handleFriendClick = (entry: LeaderboardEntry) => {
@@ -549,9 +482,9 @@ const Leaderboard = () => {
     }
   };
 
-  // Send notification to friend via edge function
+  // Send notification to friend
   const handleSendFriendNotification = async (e: React.MouseEvent, entry: LeaderboardEntry) => {
-    e.stopPropagation(); // Prevent dialog opening
+    e.stopPropagation();
     if (entry.friendUserId) {
       setSendingNotification(entry.friendUserId);
       try {
@@ -565,7 +498,6 @@ const Leaderboard = () => {
         });
 
         if (error) {
-          console.error('Error sending notification:', error);
           toast({
             title: "Hata",
             description: "Bildirim gönderilemedi",
@@ -578,7 +510,6 @@ const Leaderboard = () => {
           });
         }
       } catch (err) {
-        console.error('Error:', err);
         toast({
           title: "Hata",
           description: "Bildirim gönderilemedi",
@@ -590,20 +521,19 @@ const Leaderboard = () => {
     }
   };
 
-  const getPositionIcon = (position: number) => {
+  const getPositionIcon = (position: number, totalEntries: number) => {
     if (position <= 4) return <TrendingUp className="h-4 w-4 text-green-500" />;
-    if (position <= 8) return <Minus className="h-4 w-4 text-yellow-500" />;
+    if (position <= totalEntries - 4) return <Minus className="h-4 w-4 text-yellow-500" />;
     return <TrendingDown className="h-4 w-4 text-red-500" />;
   };
 
-  const getPositionStyle = (position: number) => {
+  const getPositionStyle = (position: number, totalEntries: number) => {
     if (position === 1) return 'bg-yellow-500/20 border-yellow-500';
     if (position <= 4) return 'bg-green-500/10 border-green-500/30';
-    if (position <= 8) return 'bg-muted/50 border-border';
+    if (position <= totalEntries - 4) return 'bg-muted/50 border-border';
     return 'bg-red-500/10 border-red-500/30';
   };
 
-  // Format time remaining for display
   const formatTimeRemaining = () => {
     return `${timeRemaining.hours}s ${timeRemaining.minutes}dk`;
   };
@@ -634,28 +564,80 @@ const Leaderboard = () => {
     );
   }
 
-  // Get display league for header (admin uses selectedLeague)
   const displayLeague = currentUserIsAdmin ? selectedLeague : userLeague;
 
   return (
     <div className="min-h-screen bg-background pb-20 p-4">
-      {/* Admin League Selector */}
+      {/* Admin Controls */}
       {currentUserIsAdmin && (
-        <div className="mb-4">
-          <p className="text-sm text-muted-foreground mb-2">Admin: Lig Seç</p>
-          <div className="flex flex-wrap gap-2">
-            {LEAGUES.map((league) => (
-              <Button
-                key={league.id}
-                variant={selectedLeague.id === league.id ? "default" : "outline"}
-                size="sm"
-                className={selectedLeague.id === league.id ? `bg-gradient-to-r ${league.color} text-white` : ''}
-                onClick={() => setSelectedLeague(league)}
-              >
-                {league.name.replace(' League', '')}
-              </Button>
-            ))}
+        <div className="mb-4 space-y-3">
+          {/* League Selector */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-2">Admin: Lig Seç</p>
+            <div className="flex flex-wrap gap-2">
+              {LEAGUES.map((league) => (
+                <Button
+                  key={league.id}
+                  variant={selectedLeague.id === league.id ? "default" : "outline"}
+                  size="sm"
+                  className={selectedLeague.id === league.id ? `bg-gradient-to-r ${league.color} text-white` : ''}
+                  onClick={() => setSelectedLeague(league)}
+                >
+                  {league.name.replace(' League', '')}
+                </Button>
+              ))}
+            </div>
           </div>
+
+          {/* Time Simulation Controls */}
+          <Card className="bg-muted/50">
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Zaman Simülasyonu:</span>
+                  <span className="font-mono text-sm font-bold">
+                    {simulatedHoursOffset > 0 ? '+' : ''}{simulatedHoursOffset}h
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSimulatedHoursOffset(prev => prev - 1)}
+                  >
+                    <MinusCircle className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSimulatedHoursOffset(prev => prev + 1)}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => setSimulatedHoursOffset(0)}
+                  >
+                    Sıfırla
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Period End Simulation */}
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Periyot sonu simülasyonu:</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={simulateLeagueChanges}
+                >
+                  Lig Değişikliklerini Uygula
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -672,6 +654,9 @@ const Leaderboard = () => {
             <div>
               <p className="text-sm opacity-80">Kalan Süre</p>
               <p className="text-xl font-bold">{formatTimeRemaining()}</p>
+              {simulatedHoursOffset !== 0 && (
+                <p className="text-xs opacity-70">(Simüle: {simulatedHoursOffset > 0 ? '+' : ''}{simulatedHoursOffset}h)</p>
+              )}
             </div>
             <div className="text-right">
               <p className="text-sm opacity-80">Senin XP</p>
@@ -697,11 +682,11 @@ const Leaderboard = () => {
         </div>
         <div className="flex items-center gap-1">
           <Minus className="h-4 w-4 text-yellow-500" />
-          <span className="text-muted-foreground">5-8: Kal</span>
+          <span className="text-muted-foreground">Ortada: Kal</span>
         </div>
         <div className="flex items-center gap-1">
           <TrendingDown className="h-4 w-4 text-red-500" />
-          <span className="text-muted-foreground">9-10: Düş</span>
+          <span className="text-muted-foreground">Son 4: Düş</span>
         </div>
       </div>
 
@@ -710,7 +695,7 @@ const Leaderboard = () => {
         {leaderboardEntries.map((entry, index) => (
           <Card 
             key={entry.id} 
-            className={`border ${getPositionStyle(index + 1)} ${entry.isCurrentUser ? 'ring-2 ring-primary' : ''} ${entry.isFriend ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
+            className={`border ${getPositionStyle(index + 1, leaderboardEntries.length)} ${entry.isCurrentUser ? 'ring-2 ring-primary' : ''} ${entry.isFriend ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''}`}
             onClick={() => handleFriendClick(entry)}
           >
             <CardContent className="p-3 flex items-center gap-3">
@@ -738,9 +723,13 @@ const Leaderboard = () => {
                     <Users className="h-3 w-3" /> Arkadaş
                   </p>
                 )}
+                {entry.isBot && currentUserIsAdmin && (
+                  <p className="text-xs text-muted-foreground">
+                    Bot • {entry.daily_xp_rate?.toLocaleString()} XP/gün
+                  </p>
+                )}
               </div>
               
-              {/* Friend notification button */}
               {entry.isFriend && (
                 <Button
                   size="sm"
@@ -755,7 +744,7 @@ const Leaderboard = () => {
               
               <div className="flex items-center gap-2">
                 <span className="font-bold">{entry.xp.toLocaleString()} XP</span>
-                {getPositionIcon(index + 1)}
+                {getPositionIcon(index + 1, leaderboardEntries.length)}
               </div>
             </CardContent>
           </Card>
@@ -774,7 +763,6 @@ const Leaderboard = () => {
           
           {selectedFriend && userProfile && (
             <div className="space-y-4">
-              {/* Avatars and Names */}
               <div className="flex justify-around items-center">
                 <div className="text-center">
                   <Avatar className="h-16 w-16 mx-auto mb-2">
@@ -797,9 +785,7 @@ const Leaderboard = () => {
                 </div>
               </div>
 
-              {/* Stats Comparison */}
               <div className="space-y-3">
-                {/* Total XP */}
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <span className="font-bold text-primary">{userPeriodXp.toLocaleString()}</span>
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -809,7 +795,6 @@ const Leaderboard = () => {
                   <span className="font-bold">{selectedFriend.xp.toLocaleString()}</span>
                 </div>
 
-                {/* Login Streak */}
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <span className="font-bold text-primary">{userProfile.login_streak || 0}</span>
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -819,7 +804,6 @@ const Leaderboard = () => {
                   <span className="font-bold">{selectedFriend.login_streak || 0}</span>
                 </div>
 
-                {/* Game XP Breakdown */}
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
                   <span className="font-bold text-primary">{userProfile.tetris_xp || 0}</span>
                   <div className="flex items-center gap-2 text-muted-foreground">

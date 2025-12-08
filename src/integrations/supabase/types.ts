@@ -98,6 +98,42 @@ export type Database = {
         }
         Relationships: []
       }
+      leaderboard_bots: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          current_league: string
+          daily_xp_rate: number
+          id: string
+          is_male: boolean
+          name: string
+          period_xp: number
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          current_league?: string
+          daily_xp_rate?: number
+          id?: string
+          is_male?: boolean
+          name: string
+          period_xp?: number
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          current_league?: string
+          daily_xp_rate?: number
+          id?: string
+          is_male?: boolean
+          name?: string
+          period_xp?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       learned_words: {
         Row: {
           added_at: string
