@@ -340,13 +340,13 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20 p-4">
+    <div className="min-h-screen bg-page-dictionary-bg pb-20 p-4">
       <div className="max-w-2xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between py-4">
-          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
+          <h1 className="text-2xl font-quicksand font-bold text-page-dictionary-accent flex items-center gap-2">
             <GraduationCap className="w-8 h-8" />
-            Sözlük
+            📖 Sözlük
           </h1>
           {/* Only show drawer buttons for admin */}
           {isAdmin && (

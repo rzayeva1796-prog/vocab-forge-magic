@@ -13,6 +13,14 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        nunito: ['Nunito', 'sans-serif'],
+        fredoka: ['Fredoka', 'sans-serif'],
+        poppins: ['Poppins', 'sans-serif'],
+        quicksand: ['Quicksand', 'sans-serif'],
+        comic: ['Comic Neue', 'cursive'],
+        baloo: ['Baloo 2', 'cursive'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -64,6 +72,38 @@ export default {
           "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
+        },
+        page: {
+          words: {
+            bg: "hsl(var(--page-words-bg))",
+            accent: "hsl(var(--page-words-accent))",
+            muted: "hsl(var(--page-words-muted))",
+          },
+          game: {
+            bg: "hsl(var(--page-game-bg))",
+            accent: "hsl(var(--page-game-accent))",
+            muted: "hsl(var(--page-game-muted))",
+          },
+          leaderboard: {
+            bg: "hsl(var(--page-leaderboard-bg))",
+            accent: "hsl(var(--page-leaderboard-accent))",
+            muted: "hsl(var(--page-leaderboard-muted))",
+          },
+          dictionary: {
+            bg: "hsl(var(--page-dictionary-bg))",
+            accent: "hsl(var(--page-dictionary-accent))",
+            muted: "hsl(var(--page-dictionary-muted))",
+          },
+          fun: {
+            bg: "hsl(var(--page-fun-bg))",
+            accent: "hsl(var(--page-fun-accent))",
+            muted: "hsl(var(--page-fun-muted))",
+          },
+          profile: {
+            bg: "hsl(var(--page-profile-bg))",
+            accent: "hsl(var(--page-profile-accent))",
+            muted: "hsl(var(--page-profile-muted))",
+          },
         },
       },
       borderRadius: {

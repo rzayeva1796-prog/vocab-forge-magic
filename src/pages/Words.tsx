@@ -292,10 +292,10 @@ const Words = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-page-words-bg pb-20">
       <div className="p-4">
-        <h1 className="text-2xl font-bold text-center mb-6 text-foreground">
-          Kelime Paketleri
+        <h1 className="text-2xl font-fredoka font-bold text-center mb-6 text-page-words-accent">
+          📚 Kelime Paketleri
         </h1>
 
         {loading ? (

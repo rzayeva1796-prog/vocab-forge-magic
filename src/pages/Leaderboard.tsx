@@ -534,7 +534,7 @@ const Leaderboard = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-background pb-20 p-4">
+      <div className="min-h-screen bg-page-leaderboard-bg pb-20 p-4 font-poppins">
         <Card>
           <CardContent className="p-8 text-center">
             <Trophy className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -551,8 +551,8 @@ const Leaderboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen bg-page-leaderboard-bg flex items-center justify-center pb-20 font-poppins">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-page-leaderboard-accent"></div>
         <BottomNavigation />
       </div>
     );
@@ -561,7 +561,7 @@ const Leaderboard = () => {
   const displayLeague = currentUserIsAdmin ? selectedLeague : userLeague;
 
   return (
-    <div className="min-h-screen bg-background pb-20 p-4">
+    <div className="min-h-screen bg-page-leaderboard-bg pb-20 p-4 font-poppins">
       {/* Admin Controls */}
       {currentUserIsAdmin && (
         <div className="mb-4 space-y-3">
@@ -638,9 +638,9 @@ const Leaderboard = () => {
       {/* League Header */}
       <Card className={`mb-6 bg-gradient-to-r ${displayLeague.color} text-white`}>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 font-poppins">
             <Trophy className="h-6 w-6" />
-            {displayLeague.name}
+            🏆 {displayLeague.name}
           </CardTitle>
         </CardHeader>
         <CardContent>
