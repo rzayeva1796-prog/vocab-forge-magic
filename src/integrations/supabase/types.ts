@@ -14,6 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      episodes: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          episode_number: number
+          id: string
+          name: string
+          package_id: string | null
+          season_id: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          episode_number: number
+          id?: string
+          name: string
+          package_id?: string | null
+          season_id: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          episode_number?: number
+          id?: string
+          name?: string
+          package_id?: string | null
+          season_id?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episodes_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "word_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episodes_season_id_fkey"
+            columns: ["season_id"]
+            isOneToOne: false
+            referencedRelation: "seasons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       flashcard_progress: {
         Row: {
           created_at: string | null
@@ -178,6 +226,30 @@ export type Database = {
           },
         ]
       }
+      movies: {
+        Row: {
+          cover_url: string | null
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       notification_settings: {
         Row: {
           created_at: string
@@ -288,6 +360,38 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      seasons: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          id: string
+          movie_id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          movie_id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          movie_id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasons_movie_id_fkey"
+            columns: ["movie_id"]
+            isOneToOne: false
+            referencedRelation: "movies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sections: {
         Row: {
