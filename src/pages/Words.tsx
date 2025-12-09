@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { SectionCard } from "@/components/SectionCard";
 import { SubsectionCard } from "@/components/SubsectionCard";
@@ -7,7 +7,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-
 interface Section {
   id: string;
   name: string;
@@ -260,6 +259,25 @@ const Words = () => {
     setSubsections(prev => prev.filter(s => s.id !== subsectionId));
   };
 
+  const handleReorderSubsection = (draggedId: string, targetId: string) => {
+    setSubsections(prev => {
+      const newList = [...prev];
+      const draggedIdx = newList.findIndex(s => s.id === draggedId);
+      const targetIdx = newList.findIndex(s => s.id === targetId);
+      
+      if (draggedIdx === -1 || targetIdx === -1) return prev;
+      
+      // Swap display_order values
+      const draggedOrder = newList[draggedIdx].display_order;
+      const targetOrder = newList[targetIdx].display_order;
+      
+      newList[draggedIdx] = { ...newList[draggedIdx], display_order: targetOrder };
+      newList[targetIdx] = { ...newList[targetIdx], display_order: draggedOrder };
+      
+      return newList;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="p-4">
@@ -296,6 +314,7 @@ const Words = () => {
                 <div className="flex flex-col items-center gap-20 py-4">
                   {subsections
                     .filter(sub => sub.section_id === section.id)
+                    .sort((a, b) => a.display_order - b.display_order)
                     .map((sub, index) => (
                       <SubsectionCard
                         key={sub.id}
@@ -305,6 +324,8 @@ const Words = () => {
                         availablePackages={packages}
                         onUpdate={loadData}
                         onDelete={handleDeleteSubsection}
+                        onReorder={handleReorderSubsection}
+                        allSubsections={subsections.filter(s => s.section_id === section.id)}
                       />
                     ))}
 
