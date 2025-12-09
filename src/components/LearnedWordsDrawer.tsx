@@ -222,19 +222,30 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         return;
       }
 
-      // Get existing words to check for duplicates
+      // Get existing words to check for duplicates (check both english and turkish)
       const { data: existingWords } = await supabase
         .from("learned_words")
-        .select("english");
+        .select("english, turkish");
 
-      const existingSet = new Set(
-        (existingWords || []).map((w) => w.english.toLowerCase())
+      // Create a set of existing word pairs (english|turkish)
+      const existingPairs = new Set(
+        (existingWords || []).map((w) => `${w.english.toLowerCase()}|${w.turkish.toLowerCase()}`)
       );
 
-      // Filter out duplicates
-      const uniqueWords = newWords.filter(
-        (w) => !existingSet.has(w.english.toLowerCase())
-      );
+      console.log("Existing words count:", existingWords?.length);
+      console.log("New words from Excel:", newWords.length);
+
+      // Filter out words that already exist (same english AND turkish pair)
+      const uniqueWords = newWords.filter((w) => {
+        const pair = `${w.english.toLowerCase()}|${w.turkish.toLowerCase()}`;
+        const exists = existingPairs.has(pair);
+        if (exists) {
+          console.log("Skipping existing word:", w.english, "-", w.turkish);
+        }
+        return !exists;
+      });
+
+      console.log("Unique words to insert:", uniqueWords.length);
 
       if (uniqueWords.length === 0) {
         toast({
@@ -245,7 +256,7 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         return;
       }
 
-      // Create package
+      // Create package first
       const { data: packageData, error: packageError } = await supabase
         .from("word_packages")
         .insert({ name: newPackageName.trim() })
@@ -266,8 +277,11 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         return;
       }
 
-      // Insert only unique words (not existing in any package) with new package_id
+      console.log("Package created:", packageData.id, packageData.name);
+
+      // Insert ONLY unique words - never update existing ones
       let insertedCount = 0;
+      let errorCount = 0;
       for (const w of uniqueWords) {
         const { error: insertError } = await supabase
           .from("learned_words")
@@ -280,10 +294,15 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
             package_name: newPackageName.trim(),
           });
 
-        if (!insertError) {
+        if (insertError) {
+          console.error("Insert error for word:", w.english, insertError.message);
+          errorCount++;
+        } else {
           insertedCount++;
         }
       }
+
+      console.log("Inserted:", insertedCount, "Errors:", errorCount);
 
       const skippedCount = newWords.length - insertedCount;
 
