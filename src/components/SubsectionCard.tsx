@@ -237,8 +237,8 @@ export const SubsectionCard = ({
     <>
       <div
         className={cn(
-          "relative flex items-center gap-4",
-          isLeft ? "self-start ml-8" : "self-end mr-8"
+          "relative flex items-center gap-3",
+          isLeft ? "self-start ml-4" : "self-end mr-4"
         )}
       >
         {/* Connection line */}
