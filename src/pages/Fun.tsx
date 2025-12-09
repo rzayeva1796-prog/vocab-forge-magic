@@ -21,10 +21,10 @@ const Fun = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-page-fun-bg pb-20">
       <div className="p-4">
-        <h1 className="text-2xl font-bold text-center mb-6 text-foreground">
-          Eğlence
+        <h1 className="text-3xl font-comic font-bold text-center mb-6 text-page-fun-accent">
+          ✨ Eğlence
         </h1>
 
         <div className="max-w-md mx-auto space-y-4">

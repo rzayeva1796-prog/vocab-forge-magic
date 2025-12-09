@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Fredoka:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Quicksand:wght@400;500;600;700&family=Comic+Neue:wght@400;700&family=Baloo+2:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -47,20 +49,38 @@ All colors MUST be HSL.
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Section-specific theme colors */
+    --page-words-bg: 24 95% 97%;
+    --page-words-accent: 24 90% 55%;
+    --page-words-muted: 24 30% 90%;
+    
+    --page-game-bg: 48 95% 97%;
+    --page-game-accent: 45 95% 50%;
+    --page-game-muted: 48 40% 88%;
+    
+    --page-leaderboard-bg: 142 70% 97%;
+    --page-leaderboard-accent: 142 70% 45%;
+    --page-leaderboard-muted: 142 30% 88%;
+    
+    --page-dictionary-bg: 330 80% 97%;
+    --page-dictionary-accent: 330 80% 55%;
+    --page-dictionary-muted: 330 30% 90%;
+    
+    --page-fun-bg: 270 70% 97%;
+    --page-fun-accent: 270 70% 55%;
+    --page-fun-muted: 270 30% 90%;
+    
+    --page-profile-bg: 210 80% 97%;
+    --page-profile-accent: 210 80% 55%;
+    --page-profile-muted: 210 30% 90%;
   }
 
   .dark {

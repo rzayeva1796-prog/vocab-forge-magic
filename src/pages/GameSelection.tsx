@@ -26,17 +26,17 @@ const GameSelection = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p>Yükleniyor...</p>
+      <div className="min-h-screen bg-page-game-bg flex items-center justify-center">
+        <p className="font-comic text-lg">Yükleniyor...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-page-game-bg pb-20">
       <div className="p-4">
-        <h1 className="text-2xl font-bold text-center mb-6 text-foreground">
-          Oyunlar
+        <h1 className="text-3xl font-baloo font-bold text-center mb-6 text-page-game-accent">
+          🎮 Oyunlar
         </h1>
 
         {!user && (

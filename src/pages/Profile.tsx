@@ -339,16 +339,16 @@ const Profile = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
-        <p>Yükleniyor...</p>
+      <div className="min-h-screen bg-page-profile-bg flex items-center justify-center">
+        <p className="font-nunito text-lg">Yükleniyor...</p>
       </div>
     );
   }
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 flex items-center justify-center">
-        <p>Profil bulunamadı</p>
+      <div className="min-h-screen bg-page-profile-bg flex items-center justify-center">
+        <p className="font-nunito text-lg">Profil bulunamadı</p>
       </div>
     );
   }
@@ -363,7 +363,7 @@ const Profile = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-page-profile-bg pb-20 font-nunito">
       <div className="max-w-md mx-auto p-4 space-y-6">
         <div className="flex justify-end">
           <Button variant="ghost" onClick={async () => { await supabase.auth.signOut(); navigate('/auth'); }}>
@@ -423,8 +423,8 @@ const Profile = () => {
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
-                  <CardTitle className="text-2xl">
-                    {profile.display_name || "Kullanıcı"}
+                  <CardTitle className="text-2xl text-page-profile-accent">
+                    👤 {profile.display_name || "Kullanıcı"}
                   </CardTitle>
                   <Button size="sm" variant="ghost" onClick={() => setEditingName(true)}>
                     <Edit2 className="w-4 h-4" />
