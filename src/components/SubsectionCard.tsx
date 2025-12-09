@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Lock, Star, Plus, ImageIcon, Trash2 } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-
+import { useAuth } from "@/contexts/AuthContext";
 interface SubsectionCardProps {
   subsection: {
     id: string;
@@ -36,6 +36,7 @@ export const SubsectionCard = ({
   onDelete,
 }: SubsectionCardProps) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -43,6 +44,7 @@ export const SubsectionCard = ({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [adjustingStars, setAdjustingStars] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const starRating = subsection.min_star_rating ?? 0;
@@ -154,6 +156,64 @@ export const SubsectionCard = ({
     }
   };
 
+  const handleAdjustStars = async (delta: number) => {
+    if (!user || !subsection.package_id) return;
+    
+    setAdjustingStars(true);
+    try {
+      // Get all words in this package
+      const { data: words } = await supabase
+        .from("learned_words")
+        .select("id")
+        .eq("package_id", subsection.package_id);
+
+      if (!words || words.length === 0) {
+        toast.error("Bu pakette kelime yok");
+        return;
+      }
+
+      const wordIds = words.map(w => w.id);
+
+      // Get existing progress for these words
+      const { data: existingProgress } = await supabase
+        .from("user_word_progress")
+        .select("word_id, star_rating")
+        .eq("user_id", user.id)
+        .in("word_id", wordIds);
+
+      const existingMap: Record<string, number> = {};
+      (existingProgress || []).forEach(p => {
+        existingMap[p.word_id] = p.star_rating;
+      });
+
+      // Prepare upsert data
+      const upsertData = wordIds.map(wordId => {
+        const currentRating = existingMap[wordId] ?? 0;
+        const newRating = Math.max(0, Math.min(5, currentRating + delta));
+        return {
+          user_id: user.id,
+          word_id: wordId,
+          star_rating: newRating,
+        };
+      });
+
+      // Upsert all progress
+      const { error } = await supabase
+        .from("user_word_progress")
+        .upsert(upsertData, { onConflict: "user_id,word_id" });
+
+      if (error) throw error;
+
+      toast.success(delta > 0 ? "Yıldızlar artırıldı" : "Yıldızlar azaltıldı");
+      onUpdate();
+    } catch (error) {
+      console.error("Error adjusting stars:", error);
+      toast.error("Yıldızlar güncellenemedi");
+    } finally {
+      setAdjustingStars(false);
+    }
+  };
+
   // Render 5 stars based on min_star_rating
   const renderStars = () => {
     return (
@@ -251,6 +311,36 @@ export const SubsectionCard = ({
             <span className="text-xs text-muted-foreground">
               {subsection.word_count} kelime
             </span>
+          )}
+          
+          {/* Admin star adjustment buttons */}
+          {isAdmin && subsection.package_id && (
+            <div className="flex gap-1 mt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdjustStars(-1);
+                }}
+                disabled={adjustingStars}
+              >
+                <Minus className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-6 w-6 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdjustStars(1);
+                }}
+                disabled={adjustingStars}
+              >
+                <Plus className="w-3 h-3" />
+              </Button>
+            </div>
           )}
           
           {/* Admin delete button */}
