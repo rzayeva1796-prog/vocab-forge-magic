@@ -293,7 +293,7 @@ const Words = () => {
                 onToggle={() => toggleSection(section.id)}
                 onUpdateName={handleUpdateSectionName}
               >
-                <div className="flex flex-col items-center gap-6 py-4">
+                <div className="flex flex-col items-center gap-12 py-4">
                   {subsections
                     .filter(sub => sub.section_id === section.id)
                     .map((sub, index) => (
