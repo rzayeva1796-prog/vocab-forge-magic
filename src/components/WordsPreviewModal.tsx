@@ -64,33 +64,53 @@ export const WordsPreviewModal = ({
     setPlayingId(word.id);
     
     try {
-      // Use Web Speech API for TTS (free and works offline)
-      if ('speechSynthesis' in window) {
-        // Cancel any ongoing speech
-        window.speechSynthesis.cancel();
-        
+      if (!('speechSynthesis' in window)) {
+        toast.error("Tarayıcınız sesli okumayı desteklemiyor");
+        setPlayingId(null);
+        return;
+      }
+
+      // Cancel any ongoing speech
+      window.speechSynthesis.cancel();
+
+      const speak = () => {
         const utterance = new SpeechSynthesisUtterance(word.english);
         utterance.lang = 'en-US';
-        utterance.rate = 0.9;
+        utterance.rate = 0.85;
         utterance.pitch = 1;
         
         // Find an English voice
         const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => v.lang.startsWith('en'));
+        const englishVoice = voices.find(v => v.lang.startsWith('en-US')) 
+          || voices.find(v => v.lang.startsWith('en'));
         if (englishVoice) {
           utterance.voice = englishVoice;
         }
         
         utterance.onend = () => setPlayingId(null);
-        utterance.onerror = () => {
-          console.error("Speech synthesis error");
+        utterance.onerror = (e) => {
+          console.error("Speech synthesis error:", e);
           setPlayingId(null);
         };
         
         window.speechSynthesis.speak(utterance);
+      };
+
+      // Voices may not be loaded yet, wait for them
+      const voices = window.speechSynthesis.getVoices();
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          speak();
+          window.speechSynthesis.onvoiceschanged = null;
+        };
+        // Fallback timeout
+        setTimeout(() => {
+          if (playingId === word.id) {
+            speak();
+          }
+        }, 100);
       } else {
-        toast.error("Tarayıcınız sesli okumayı desteklemiyor");
-        setPlayingId(null);
+        speak();
       }
     } catch (error) {
       console.error("Error playing audio:", error);
