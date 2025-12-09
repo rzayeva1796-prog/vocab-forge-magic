@@ -17,37 +17,23 @@ serve(async (req) => {
       throw new Error("Text is required");
     }
 
-    // Use Web Speech API compatible voice
-    const voice = language === "en" ? "alloy" : "alloy";
-
-    // Generate speech using OpenAI TTS
-    const response = await fetch("https://api.openai.com/v1/audio/speech", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${Deno.env.get("OPENAI_API_KEY")}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "tts-1",
-        input: text,
-        voice: voice,
-        response_format: "mp3",
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || "Failed to generate speech");
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Convert audio buffer to base64
-    const arrayBuffer = await response.arrayBuffer();
-    const base64Audio = btoa(
-      String.fromCharCode(...new Uint8Array(arrayBuffer))
-    );
+    // Use Lovable AI to generate a phonetic pronunciation guide
+    // Then use browser's Web Speech API on client side
+    // For now, return the text for client-side TTS using Web Speech API
+    
+    console.log(`TTS request for text: "${text}" in language: ${language}`);
 
     return new Response(
-      JSON.stringify({ audioContent: base64Audio }),
+      JSON.stringify({ 
+        text: text,
+        language: language,
+        useWebSpeech: true 
+      }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
