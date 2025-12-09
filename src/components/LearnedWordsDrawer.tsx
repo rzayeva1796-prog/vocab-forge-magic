@@ -84,11 +84,35 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
 
   const handleDeletePackage = async (packageId: string, packageName: string) => {
     try {
-      // First, remove package_id and package_name from words (don't delete the words themselves)
-      await supabase
+      // First, remove package_id from episodes (foreign key constraint)
+      const { error: episodesError } = await supabase
+        .from("episodes")
+        .update({ package_id: null })
+        .eq("package_id", packageId);
+
+      if (episodesError) {
+        console.error("Episodes update error:", episodesError);
+      }
+
+      // Then, remove package_id and package_name from words
+      const { error: wordsError } = await supabase
         .from("learned_words")
         .update({ package_id: null, package_name: null })
         .eq("package_id", packageId);
+
+      if (wordsError) {
+        console.error("Words update error:", wordsError);
+      }
+
+      // Remove package_id from subsections
+      const { error: subsectionsError } = await supabase
+        .from("subsections")
+        .update({ package_id: null })
+        .eq("package_id", packageId);
+
+      if (subsectionsError) {
+        console.error("Subsections update error:", subsectionsError);
+      }
 
       // Then delete the package
       const { error } = await supabase
