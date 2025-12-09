@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Film } from "lucide-react";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,10 @@ const Fun = () => {
     } else {
       navigate("/auth");
     }
+  };
+
+  const handleMoviesClick = () => {
+    navigate("/movies");
   };
 
   return (
@@ -31,6 +35,15 @@ const Fun = () => {
           >
             <BookOpen className="w-8 h-8 mr-3" />
             Kitap Oku
+          </Button>
+
+          <Button
+            onClick={handleMoviesClick}
+            className="w-full h-20 text-xl bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900"
+            size="lg"
+          >
+            <Film className="w-8 h-8 mr-3" />
+            Film İzle
           </Button>
         </div>
       </div>
