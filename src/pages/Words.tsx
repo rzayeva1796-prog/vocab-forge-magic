@@ -24,6 +24,7 @@ interface Subsection {
   word_count?: number;
   unlocked?: boolean;
   min_star_rating?: number;
+  activated?: boolean;
 }
 
 interface WordPackage {
@@ -65,12 +66,13 @@ const Words = () => {
       }
 
       // Load all data in parallel for better performance
-      const [sectionsResult, packagesResult, subsectionsResult, allWordsResult, userProgressResult] = await Promise.all([
+      const [sectionsResult, packagesResult, subsectionsResult, allWordsResult, userProgressResult, activationsResult] = await Promise.all([
         supabase.from("sections").select("*").order("display_order", { ascending: true }),
         supabase.from("word_packages").select("id, name").order("display_order", { ascending: true }),
         supabase.from("subsections").select("*").order("display_order", { ascending: true }),
         supabase.from("learned_words").select("id, package_id"),
-        user ? supabase.from("user_word_progress").select("word_id, star_rating").eq("user_id", user.id) : Promise.resolve({ data: [] })
+        user ? supabase.from("user_word_progress").select("word_id, star_rating").eq("user_id", user.id) : Promise.resolve({ data: [] }),
+        user ? supabase.from("user_subsection_activations").select("subsection_id").eq("user_id", user.id) : Promise.resolve({ data: [] })
       ]);
 
       if (sectionsResult.error) throw sectionsResult.error;
@@ -82,6 +84,10 @@ const Words = () => {
       const subsectionsData = subsectionsResult.data || [];
       const allWords = allWordsResult.data || [];
       const userProgress = userProgressResult.data || [];
+      const activations = activationsResult.data || [];
+
+      // Create set of activated subsection IDs
+      const activatedSubsectionIds = new Set(activations.map((a: any) => a.subsection_id));
 
       // Auto-expand first section
       if (sectionsData && sectionsData.length > 0) {
@@ -107,7 +113,7 @@ const Words = () => {
       // Enrich subsections without additional DB calls
       const enrichedSubsections = subsectionsData.map(sub => {
         if (!sub.package_id) {
-          return { ...sub, package_name: undefined, word_count: 0, unlocked: true, min_star_rating: 0 };
+          return { ...sub, package_name: undefined, word_count: 0, unlocked: true, min_star_rating: 0, activated: true };
         }
 
         const pkg = packagesData.find(p => p.id === sub.package_id);
@@ -125,6 +131,7 @@ const Words = () => {
           word_count: wordIds.length,
           unlocked: true,
           min_star_rating: minStarRating,
+          activated: activatedSubsectionIds.has(sub.id),
         };
       });
 
@@ -140,16 +147,22 @@ const Words = () => {
 
       // Sort by display_order within each section and calculate unlock
       // Admin users always have all subsections unlocked
+      // For regular users: subsection unlocks when:
+      // 1. First subsection: must be activated (viewed words + clicked Aktifleştir)
+      // 2. Other subsections: previous subsection must have >= 3 stars AND this subsection must be activated
       Object.keys(subsectionsBySectionId).forEach(sectionId => {
         const subs = subsectionsBySectionId[sectionId].sort((a, b) => a.display_order - b.display_order);
         subs.forEach((sub, idx) => {
           if (userIsAdmin) {
             sub.unlocked = true; // Admin always has access
           } else if (idx === 0) {
-            sub.unlocked = true;
+            // First subsection: only needs activation
+            sub.unlocked = sub.activated === true;
           } else {
             const prevSub = subs[idx - 1];
-            sub.unlocked = (prevSub.min_star_rating ?? 0) >= 3;
+            const prevHasMinStars = (prevSub.min_star_rating ?? 0) >= 3;
+            const isActivated = sub.activated === true;
+            sub.unlocked = prevHasMinStars && isActivated;
           }
         });
       });

@@ -19,6 +19,7 @@ interface WordsPreviewModalProps {
   onOpenChange: (open: boolean) => void;
   packageId: string;
   packageName: string;
+  subsectionId: string;
   onActivate: () => void;
 }
 
@@ -27,6 +28,7 @@ export const WordsPreviewModal = ({
   onOpenChange,
   packageId,
   packageName,
+  subsectionId,
   onActivate,
 }: WordsPreviewModalProps) => {
   const { user } = useAuth();
@@ -127,18 +129,13 @@ export const WordsPreviewModal = ({
 
     setActivating(true);
     try {
-      // Set all words in this package to 3 stars (minimum to unlock)
-      const wordIds = words.map((w) => w.id);
-      
-      const upsertData = wordIds.map((wordId) => ({
-        user_id: user.id,
-        word_id: wordId,
-        star_rating: 3,
-      }));
-
+      // Only mark the subsection as activated - don't change star ratings
       const { error } = await supabase
-        .from("user_word_progress")
-        .upsert(upsertData, { onConflict: "user_id,word_id" });
+        .from("user_subsection_activations")
+        .upsert(
+          { user_id: user.id, subsection_id: subsectionId },
+          { onConflict: "user_id,subsection_id" }
+        );
 
       if (error) throw error;
 

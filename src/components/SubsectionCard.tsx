@@ -524,6 +524,7 @@ export const SubsectionCard = ({
           onOpenChange={setShowWordsPreview}
           packageId={subsection.package_id}
           packageName={subsection.package_name || "Kelimeler"}
+          subsectionId={subsection.id}
           onActivate={onUpdate}
         />
       )}
