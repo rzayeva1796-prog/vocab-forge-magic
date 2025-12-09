@@ -513,6 +513,35 @@ export type Database = {
         }
         Relationships: []
       }
+      user_subsection_activations: {
+        Row: {
+          activated_at: string
+          id: string
+          subsection_id: string
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string
+          id?: string
+          subsection_id: string
+          user_id: string
+        }
+        Update: {
+          activated_at?: string
+          id?: string
+          subsection_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subsection_activations_subsection_id_fkey"
+            columns: ["subsection_id"]
+            isOneToOne: false
+            referencedRelation: "subsections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_word_progress: {
         Row: {
           created_at: string
