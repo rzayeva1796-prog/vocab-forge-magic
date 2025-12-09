@@ -238,31 +238,53 @@ export const SubsectionCard = ({
       <div
         className={cn(
           "relative flex items-center gap-3",
-          isLeft ? "self-center -translate-x-12" : "self-center translate-x-12"
+          isLeft ? "self-center -translate-x-12" : "self-center translate-x-12",
+          isAdmin && "cursor-grab active:cursor-grabbing"
         )}
+        draggable={isAdmin}
+        onDragStart={(e) => {
+          if (isAdmin) {
+            e.dataTransfer.setData("subsection-id", subsection.id);
+            e.dataTransfer.setData("subsection-order", String(subsection.display_order));
+            e.dataTransfer.effectAllowed = "move";
+          }
+        }}
+        onDragOver={(e) => {
+          if (isAdmin) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+          }
+        }}
+        onDrop={async (e) => {
+          if (!isAdmin) return;
+          e.preventDefault();
+          const draggedId = e.dataTransfer.getData("subsection-id");
+          const draggedOrder = parseInt(e.dataTransfer.getData("subsection-order"));
+          
+          if (draggedId && draggedId !== subsection.id) {
+            try {
+              // Swap display_order values
+              const targetOrder = subsection.display_order;
+              
+              await supabase
+                .from("subsections")
+                .update({ display_order: targetOrder })
+                .eq("id", draggedId);
+              
+              await supabase
+                .from("subsections")
+                .update({ display_order: draggedOrder })
+                .eq("id", subsection.id);
+              
+              toast.success("Sıralama güncellendi");
+              onUpdate();
+            } catch (error) {
+              console.error("Error reordering:", error);
+              toast.error("Sıralama güncellenemedi");
+            }
+          }
+        }}
       >
-        {/* Connection line - curved path to previous subsection */}
-        {index > 0 && (
-          <svg
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: '-80px' }}
-            width="100"
-            height="80"
-            viewBox="0 0 100 80"
-            fill="none"
-          >
-            <path
-              d={isLeft 
-                ? "M 90 0 C 90 40, 10 40, 10 80" 
-                : "M 10 0 C 10 40, 90 40, 90 80"
-              }
-              stroke="hsl(var(--muted-foreground))"
-              strokeWidth="2"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-        )}
 
         {/* Main circle button */}
         <div className="flex flex-col items-center">
