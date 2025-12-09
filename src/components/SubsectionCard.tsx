@@ -238,17 +238,29 @@ export const SubsectionCard = ({
       <div
         className={cn(
           "relative flex items-center gap-3",
-          isLeft ? "self-start ml-4" : "self-end mr-4"
+          isLeft ? "self-center -translate-x-16" : "self-center translate-x-16"
         )}
       >
-        {/* Connection line */}
+        {/* Connection line - zigzag path */}
         {index > 0 && (
-          <div
-            className={cn(
-              "absolute top-0 w-0.5 h-8 bg-muted -translate-y-full",
-              isLeft ? "left-1/2" : "right-1/2"
-            )}
-          />
+          <svg
+            className="absolute -top-12 left-1/2 -translate-x-1/2"
+            width="140"
+            height="48"
+            viewBox="0 0 140 48"
+            fill="none"
+          >
+            <path
+              d={isLeft 
+                ? "M 140 0 Q 70 24 0 48" 
+                : "M 0 0 Q 70 24 140 48"
+              }
+              stroke="hsl(var(--muted))"
+              strokeWidth="3"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
         )}
 
         {/* Main circle button */}
