@@ -64,62 +64,34 @@ export const WordsPreviewModal = ({
     setPlayingId(word.id);
     
     try {
-      let audioUrl = word.audio_url;
-
-      // If no cached audio, generate and cache it
-      if (!audioUrl) {
-        const { data, error } = await supabase.functions.invoke("text-to-speech", {
-          body: { text: word.english, language: "en" },
-        });
-
-        if (error) throw error;
-
-        // Convert base64 to blob URL
-        const audioBlob = new Blob(
-          [Uint8Array.from(atob(data.audioContent), (c) => c.charCodeAt(0))],
-          { type: "audio/mp3" }
-        );
+      // Use Web Speech API for TTS (free and works offline)
+      if ('speechSynthesis' in window) {
+        // Cancel any ongoing speech
+        window.speechSynthesis.cancel();
         
-        // Upload to storage for caching
-        const fileName = `audio/${word.id}.mp3`;
-        const { error: uploadError } = await supabase.storage
-          .from("avatars")
-          .upload(fileName, audioBlob, { upsert: true });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from("avatars")
-            .getPublicUrl(fileName);
-          
-          audioUrl = urlData.publicUrl;
-
-          // Update word with cached audio URL
-          await supabase
-            .from("learned_words")
-            .update({ audio_url: audioUrl })
-            .eq("id", word.id);
-
-          // Update local state
-          setWords((prev) =>
-            prev.map((w) => (w.id === word.id ? { ...w, audio_url: audioUrl } : w))
-          );
+        const utterance = new SpeechSynthesisUtterance(word.english);
+        utterance.lang = 'en-US';
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        
+        // Find an English voice
+        const voices = window.speechSynthesis.getVoices();
+        const englishVoice = voices.find(v => v.lang.startsWith('en'));
+        if (englishVoice) {
+          utterance.voice = englishVoice;
         }
-
-        // Play immediately from base64
-        const tempUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(tempUrl);
-        audio.onended = () => {
+        
+        utterance.onend = () => setPlayingId(null);
+        utterance.onerror = () => {
+          console.error("Speech synthesis error");
           setPlayingId(null);
-          URL.revokeObjectURL(tempUrl);
         };
-        audio.play();
-        return;
+        
+        window.speechSynthesis.speak(utterance);
+      } else {
+        toast.error("Tarayıcınız sesli okumayı desteklemiyor");
+        setPlayingId(null);
       }
-
-      // Play cached audio
-      const audio = new Audio(audioUrl);
-      audio.onended = () => setPlayingId(null);
-      audio.play();
     } catch (error) {
       console.error("Error playing audio:", error);
       toast.error("Ses çalınamadı");
