@@ -65,90 +65,69 @@ const Words = () => {
         setIsAdmin(userIsAdmin);
       }
 
-      // Load sections
-      const { data: sectionsData, error: sectionsError } = await supabase
-        .from("sections")
-        .select("*")
-        .order("display_order", { ascending: true });
+      // Load all data in parallel for better performance
+      const [sectionsResult, packagesResult, subsectionsResult, allWordsResult, userProgressResult] = await Promise.all([
+        supabase.from("sections").select("*").order("display_order", { ascending: true }),
+        supabase.from("word_packages").select("id, name").order("display_order", { ascending: true }),
+        supabase.from("subsections").select("*").order("display_order", { ascending: true }),
+        supabase.from("learned_words").select("id, package_id"),
+        user ? supabase.from("user_word_progress").select("word_id, star_rating").eq("user_id", user.id) : Promise.resolve({ data: [] })
+      ]);
 
-      if (sectionsError) throw sectionsError;
+      if (sectionsResult.error) throw sectionsResult.error;
+      if (packagesResult.error) throw packagesResult.error;
+      if (subsectionsResult.error) throw subsectionsResult.error;
+
+      const sectionsData = sectionsResult.data;
+      const packagesData = packagesResult.data || [];
+      const subsectionsData = subsectionsResult.data || [];
+      const allWords = allWordsResult.data || [];
+      const userProgress = userProgressResult.data || [];
 
       // Auto-expand first section
       if (sectionsData && sectionsData.length > 0) {
         setExpandedSections(new Set([sectionsData[0].id]));
       }
 
-      // Load all packages for selection
-      const { data: packagesData, error: packagesError } = await supabase
-        .from("word_packages")
-        .select("id, name")
-        .order("display_order", { ascending: true });
+      setPackages(packagesData);
 
-      if (packagesError) throw packagesError;
-      setPackages(packagesData || []);
+      // Create lookup maps for fast access
+      const wordsByPackage: Record<string, string[]> = {};
+      allWords.forEach(w => {
+        if (w.package_id) {
+          if (!wordsByPackage[w.package_id]) wordsByPackage[w.package_id] = [];
+          wordsByPackage[w.package_id].push(w.id);
+        }
+      });
 
-      // Load subsections
-      const { data: subsectionsData, error: subsectionsError } = await supabase
-        .from("subsections")
-        .select("*")
-        .order("display_order", { ascending: true });
+      const progressByWordId: Record<string, number> = {};
+      userProgress.forEach(p => {
+        progressByWordId[p.word_id] = p.star_rating;
+      });
 
-      if (subsectionsError) throw subsectionsError;
+      // Enrich subsections without additional DB calls
+      const enrichedSubsections = subsectionsData.map(sub => {
+        if (!sub.package_id) {
+          return { ...sub, package_name: undefined, word_count: 0, unlocked: true, min_star_rating: 0 };
+        }
 
-      // Enrich subsections with package info and calculate min star rating
-      const enrichedSubsections = await Promise.all(
-        (subsectionsData || []).map(async (sub) => {
-          if (!sub.package_id) {
-            return { ...sub, package_name: undefined, word_count: 0, unlocked: true, min_star_rating: 0 };
-          }
+        const pkg = packagesData.find(p => p.id === sub.package_id);
+        const wordIds = wordsByPackage[sub.package_id] || [];
+        let minStarRating = 0;
 
-          // Get package info
-          const pkg = packagesData?.find(p => p.id === sub.package_id);
+        if (user && wordIds.length > 0) {
+          const ratings = wordIds.map(wid => progressByWordId[wid] ?? 0);
+          minStarRating = Math.min(...ratings);
+        }
 
-          // Get word count
-          const { data: words } = await supabase
-            .from("learned_words")
-            .select("id")
-            .eq("package_id", sub.package_id);
-
-          const wordIds = (words || []).map(w => w.id);
-          let minStarRating = 0;
-
-          if (user && wordIds.length > 0) {
-            const { data: progressData } = await supabase
-              .from("user_word_progress")
-              .select("star_rating")
-              .eq("user_id", user.id)
-              .in("word_id", wordIds);
-
-            // Calculate minimum star rating across all words
-            if (progressData && progressData.length > 0) {
-              // Get ratings for all words, defaulting to 0 for words without progress
-              const ratings = wordIds.map(wordId => {
-                const progress = progressData.find(p => p.star_rating !== undefined);
-                return progress ? progress.star_rating : 0;
-              });
-              
-              // If not all words have progress, min is 0
-              if (progressData.length < wordIds.length) {
-                minStarRating = 0;
-              } else {
-                // Find the minimum star rating
-                const allRatings = progressData.map(p => p.star_rating);
-                minStarRating = Math.min(...allRatings);
-              }
-            }
-          }
-
-          return {
-            ...sub,
-            package_name: pkg?.name,
-            word_count: wordIds.length,
-            unlocked: true, // Will be calculated below
-            min_star_rating: minStarRating,
-          };
-        })
-      );
+        return {
+          ...sub,
+          package_name: pkg?.name,
+          word_count: wordIds.length,
+          unlocked: true,
+          min_star_rating: minStarRating,
+        };
+      });
 
       // Calculate unlock status for subsections
       // First subsection is always unlocked, others unlock when previous has >= 3 stars
