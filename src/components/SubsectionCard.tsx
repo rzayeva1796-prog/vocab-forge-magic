@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2 } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { WordsPreviewModal } from "./WordsPreviewModal";
+
 interface Subsection {
   id: string;
   section_id: string;
@@ -47,6 +49,7 @@ export const SubsectionCard = ({
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showWordsPreview, setShowWordsPreview] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -367,6 +370,22 @@ export const SubsectionCard = ({
               {subsection.word_count} kelime
             </span>
           )}
+
+          {/* View words button - show for packages with words */}
+          {subsection.package_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 mt-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowWordsPreview(true);
+              }}
+            >
+              <Eye className="w-3 h-3 mr-1" />
+              Kelimelere Bak
+            </Button>
+          )}
           
           {/* Admin star adjustment buttons */}
           {isAdmin && subsection.package_id && (
@@ -497,6 +516,17 @@ export const SubsectionCard = ({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Words Preview Modal */}
+      {subsection.package_id && (
+        <WordsPreviewModal
+          open={showWordsPreview}
+          onOpenChange={setShowWordsPreview}
+          packageId={subsection.package_id}
+          packageName={subsection.package_name || "Kelimeler"}
+          onActivate={onUpdate}
+        />
+      )}
     </>
   );
 };

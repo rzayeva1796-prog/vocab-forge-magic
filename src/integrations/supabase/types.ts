@@ -185,6 +185,7 @@ export type Database = {
       learned_words: {
         Row: {
           added_at: string
+          audio_url: string | null
           english: string
           frequency_group: string
           id: string
@@ -196,6 +197,7 @@ export type Database = {
         }
         Insert: {
           added_at?: string
+          audio_url?: string | null
           english: string
           frequency_group: string
           id?: string
@@ -207,6 +209,7 @@ export type Database = {
         }
         Update: {
           added_at?: string
+          audio_url?: string | null
           english?: string
           frequency_group?: string
           id?: string
