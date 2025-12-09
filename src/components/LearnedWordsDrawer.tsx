@@ -266,22 +266,19 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         return;
       }
 
-      // Insert unique words with package_id one by one to handle any remaining duplicates
+      // Insert only unique words (not existing in any package) with new package_id
       let insertedCount = 0;
       for (const w of uniqueWords) {
         const { error: insertError } = await supabase
           .from("learned_words")
-          .upsert(
-            {
-              english: w.english,
-              turkish: w.turkish,
-              frequency_group: "1k",
-              star_rating: 0,
-              package_id: packageData.id,
-              package_name: newPackageName.trim(),
-            },
-            { onConflict: "english,turkish", ignoreDuplicates: true }
-          );
+          .insert({
+            english: w.english,
+            turkish: w.turkish,
+            frequency_group: "1k",
+            star_rating: 0,
+            package_id: packageData.id,
+            package_name: newPackageName.trim(),
+          });
 
         if (!insertError) {
           insertedCount++;
