@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Play, Search, Plus, Link, Lock, X, ChevronRight, Upload } from "lucide-react";
+import { ArrowLeft, Play, Search, Plus, Link, Lock, X, ChevronRight, Upload, Trash2, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,11 +19,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Movie {
   id: string;
   title: string;
   cover_url: string | null;
+  category: string | null;
 }
 
 interface Season {
@@ -47,6 +58,12 @@ interface WordPackage {
   name: string;
 }
 
+interface WatchHistory {
+  episode_id: string;
+  watched_at: string;
+  completed: boolean;
+}
+
 const Movies = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -59,13 +76,23 @@ const Movies = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // Category filter
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Watch history
+  const [watchHistory, setWatchHistory] = useState<WatchHistory[]>([]);
+  const [showWatchHistory, setShowWatchHistory] = useState(false);
+  
   // Admin dialogs
   const [showAddMovieDialog, setShowAddMovieDialog] = useState(false);
   const [showManageLinksDialog, setShowManageLinksDialog] = useState(false);
   const [managingMovie, setManagingMovie] = useState<Movie | null>(null);
+  const [movieToDelete, setMovieToDelete] = useState<Movie | null>(null);
   
   // Add movie form
   const [newMovieTitle, setNewMovieTitle] = useState("");
+  const [newMovieCategory, setNewMovieCategory] = useState("Dizi");
   const [newMovieCover, setNewMovieCover] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,6 +117,7 @@ const Movies = () => {
     if (user) {
       checkAdminStatus();
       fetchPackageStars();
+      fetchWatchHistory();
     }
   }, [user]);
 
@@ -126,6 +154,9 @@ const Movies = () => {
       console.error("Error fetching movies:", error);
     } else {
       setMovies(data || []);
+      // Extract unique categories
+      const uniqueCategories = [...new Set((data || []).map(m => m.category).filter(Boolean))] as string[];
+      setCategories(uniqueCategories);
     }
     setLoading(false);
   };
@@ -164,26 +195,22 @@ const Movies = () => {
   const fetchPackageStars = async () => {
     if (!user) return;
     
-    // Get all user word progress
     const { data: progressData } = await supabase
       .from("user_word_progress")
       .select("word_id, star_rating")
       .eq("user_id", user.id);
 
-    // Get learned words with package info
     const { data: learnedWords } = await supabase
       .from("learned_words")
       .select("id, package_id");
 
     if (!progressData || !learnedWords) return;
 
-    // Create a map of word_id to star_rating
     const wordStars: Record<string, number> = {};
     progressData.forEach(p => {
       wordStars[p.word_id] = p.star_rating;
     });
 
-    // Calculate minimum stars per package
     const packageMinStars: Record<string, number> = {};
     learnedWords.forEach(word => {
       if (word.package_id) {
@@ -199,10 +226,26 @@ const Movies = () => {
     setPackageStars(packageMinStars);
   };
 
+  const fetchWatchHistory = async () => {
+    if (!user) return;
+    
+    const { data } = await supabase
+      .from("watch_history")
+      .select("episode_id, watched_at, completed")
+      .eq("user_id", user.id)
+      .order("watched_at", { ascending: false });
+    
+    setWatchHistory(data || []);
+  };
+
   const isEpisodeUnlocked = (episode: Episode): boolean => {
     if (!episode.package_id) return true;
     const minStars = packageStars[episode.package_id];
     return minStars !== undefined && minStars >= 5;
+  };
+
+  const isEpisodeWatched = (episodeId: string): boolean => {
+    return watchHistory.some(h => h.episode_id === episodeId);
   };
 
   const handleCoverSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,7 +291,11 @@ const Movies = () => {
 
     const { error } = await supabase
       .from("movies")
-      .insert({ title: newMovieTitle.trim(), cover_url: coverUrl });
+      .insert({ 
+        title: newMovieTitle.trim(), 
+        cover_url: coverUrl,
+        category: newMovieCategory.trim() || "Dizi"
+      });
 
     if (error) {
       toast.error("Film eklenemedi");
@@ -257,10 +304,50 @@ const Movies = () => {
       toast.success("Film eklendi");
       setShowAddMovieDialog(false);
       setNewMovieTitle("");
+      setNewMovieCategory("Dizi");
       setNewMovieCover(null);
       setCoverPreview(null);
       fetchMovies();
     }
+  };
+
+  const handleDeleteMovie = async () => {
+    if (!movieToDelete) return;
+
+    // First delete all episodes and seasons
+    const { data: seasonsData } = await supabase
+      .from("seasons")
+      .select("id")
+      .eq("movie_id", movieToDelete.id);
+
+    if (seasonsData && seasonsData.length > 0) {
+      const seasonIds = seasonsData.map(s => s.id);
+      await supabase.from("episodes").delete().in("season_id", seasonIds);
+      await supabase.from("seasons").delete().eq("movie_id", movieToDelete.id);
+    }
+
+    // Delete cover from storage if exists
+    if (movieToDelete.cover_url) {
+      const fileName = movieToDelete.cover_url.split('/').pop();
+      if (fileName) {
+        await supabase.storage.from("movie-covers").remove([fileName]);
+      }
+    }
+
+    // Delete movie
+    const { error } = await supabase
+      .from("movies")
+      .delete()
+      .eq("id", movieToDelete.id);
+
+    if (error) {
+      toast.error("Film silinemedi");
+      console.error(error);
+    } else {
+      toast.success("Film silindi");
+      fetchMovies();
+    }
+    setMovieToDelete(null);
   };
 
   const handleAddSeason = async () => {
@@ -317,7 +404,7 @@ const Movies = () => {
     }
   };
 
-  const handlePlayEpisode = (episode: Episode) => {
+  const handlePlayEpisode = async (episode: Episode) => {
     if (!isEpisodeUnlocked(episode)) {
       toast.error("Bu bölümü izlemek için kelime paketini tamamlayın");
       return;
@@ -326,29 +413,56 @@ const Movies = () => {
       toast.error("Video linki bulunamadı");
       return;
     }
+
+    // Save to watch history
+    if (user) {
+      await supabase
+        .from("watch_history")
+        .upsert({
+          user_id: user.id,
+          episode_id: episode.id,
+          watched_at: new Date().toISOString(),
+          completed: false
+        }, { onConflict: 'user_id,episode_id' });
+      
+      fetchWatchHistory();
+    }
+
     setPlayingEpisode(episode);
   };
 
   const getEmbedUrl = (url: string): string => {
-    // YouTube
     if (url.includes("youtube.com") || url.includes("youtu.be")) {
       const videoId = url.includes("youtu.be") 
         ? url.split("/").pop()?.split("?")[0]
         : new URLSearchParams(new URL(url).search).get("v");
       return `https://www.youtube.com/embed/${videoId}`;
     }
-    // Vimeo
     if (url.includes("vimeo.com")) {
       const videoId = url.split("/").pop();
       return `https://player.vimeo.com/video/${videoId}`;
     }
-    // Default - return as is
     return url;
   };
 
-  const filteredMovies = movies.filter(movie =>
-    movie.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMovies = movies.filter(movie => {
+    const matchesSearch = movie.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !selectedCategory || movie.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  // Get watched episodes with movie info
+  const getWatchedEpisodesWithInfo = () => {
+    const watchedEpisodeIds = watchHistory.map(h => h.episode_id);
+    const watchedEpisodes: Array<{ episode: Episode; movie: Movie; season: Season; watchedAt: string }> = [];
+    
+    movies.forEach(movie => {
+      // We need to fetch seasons/episodes for each movie to show history
+      // For simplicity, we'll use the current episodes state if a movie is selected
+    });
+    
+    return watchedEpisodes;
+  };
 
   if (loading) {
     return (
@@ -417,6 +531,11 @@ const Movies = () => {
             )}
             <div className="flex-1">
               <h2 className="text-2xl font-bold mb-2">{selectedMovie.title}</h2>
+              {selectedMovie.category && (
+                <span className="inline-block px-2 py-1 bg-red-600/20 text-red-400 text-sm rounded mb-2">
+                  {selectedMovie.category}
+                </span>
+              )}
               <p className="text-gray-400">{seasons.length} Sezon</p>
             </div>
           </div>
@@ -431,6 +550,7 @@ const Movies = () => {
                   .sort((a, b) => a.episode_number - b.episode_number)
                   .map((episode) => {
                     const unlocked = isEpisodeUnlocked(episode);
+                    const watched = isEpisodeWatched(episode.id);
                     const packageName = wordPackages.find(p => p.id === episode.package_id)?.name;
                     
                     return (
@@ -453,8 +573,11 @@ const Movies = () => {
                           )}
                         </div>
                         <div className="flex-1">
-                          <p className="font-medium">
+                          <p className="font-medium flex items-center gap-2">
                             {episode.episode_number}. {episode.name}
+                            {watched && (
+                              <span className="text-xs text-green-500">✓ İzlendi</span>
+                            )}
                           </p>
                           {packageName && (
                             <p className="text-xs text-gray-500">
@@ -496,6 +619,16 @@ const Movies = () => {
             <h1 className="text-2xl font-bold text-red-600">FilmBox</h1>
           </div>
           <div className="flex items-center gap-2">
+            {user && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowWatchHistory(true)}
+                className="text-white hover:bg-white/10"
+              >
+                <History className="w-5 h-5" />
+              </Button>
+            )}
             {isAdmin && (
               <Button
                 variant="ghost"
@@ -519,8 +652,39 @@ const Movies = () => {
         </div>
       </header>
 
+      {/* Category Filter */}
+      <div className="pt-20 px-4">
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
+          <Button
+            variant={selectedCategory === null ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedCategory(null)}
+            className={selectedCategory === null 
+              ? "bg-red-600 hover:bg-red-700 border-0" 
+              : "border-gray-700 text-gray-300 hover:bg-gray-800"
+            }
+          >
+            Tümü
+          </Button>
+          {categories.map((category) => (
+            <Button
+              key={category}
+              variant={selectedCategory === category ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory(category)}
+              className={selectedCategory === category 
+                ? "bg-red-600 hover:bg-red-700 border-0" 
+                : "border-gray-700 text-gray-300 hover:bg-gray-800"
+              }
+            >
+              {category}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {/* Movie Grid */}
-      <div className="pt-20 px-4 pb-8">
+      <div className="px-4 pb-8">
         {filteredMovies.length === 0 ? (
           <div className="text-center py-16">
             <p className="text-gray-500">
@@ -551,6 +715,9 @@ const Movies = () => {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <h3 className="font-semibold text-sm">{movie.title}</h3>
+                      {movie.category && (
+                        <span className="text-xs text-red-400">{movie.category}</span>
+                      )}
                     </div>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -561,19 +728,32 @@ const Movies = () => {
                 </div>
                 <p className="text-sm text-center truncate">{movie.title}</p>
                 {isAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-gray-700 hover:bg-gray-800"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setManagingMovie(movie);
-                      setShowManageLinksDialog(true);
-                    }}
-                  >
-                    <Link className="w-4 h-4 mr-2" />
-                    Link Ekle
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-gray-700 hover:bg-gray-800"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setManagingMovie(movie);
+                        setShowManageLinksDialog(true);
+                      }}
+                    >
+                      <Link className="w-4 h-4 mr-1" />
+                      Link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-red-700 hover:bg-red-900/50 text-red-500"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMovieToDelete(movie);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -585,7 +765,7 @@ const Movies = () => {
       <Dialog open={showAddMovieDialog} onOpenChange={setShowAddMovieDialog}>
         <DialogContent className="bg-gray-900 border-gray-800 text-white">
           <DialogHeader>
-            <DialogTitle>Yeni Film Ekle</DialogTitle>
+            <DialogTitle>Yeni Film/Dizi Ekle</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div
@@ -609,9 +789,15 @@ const Movies = () => {
               className="hidden"
             />
             <Input
-              placeholder="Film Adı"
+              placeholder="Film/Dizi Adı"
               value={newMovieTitle}
               onChange={(e) => setNewMovieTitle(e.target.value)}
+              className="bg-gray-800 border-gray-700"
+            />
+            <Input
+              placeholder="Kategori (örn: Dizi, Film, Belgesel)"
+              value={newMovieCategory}
+              onChange={(e) => setNewMovieCategory(e.target.value)}
               className="bg-gray-800 border-gray-700"
             />
             <Button
@@ -623,6 +809,69 @@ const Movies = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Watch History Dialog */}
+      <Dialog open={showWatchHistory} onOpenChange={setShowWatchHistory}>
+        <DialogContent className="bg-gray-900 border-gray-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              İzleme Geçmişi
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {watchHistory.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">Henüz izleme geçmişi yok</p>
+            ) : (
+              watchHistory.map((history) => {
+                const episode = episodes.find(e => e.id === history.episode_id);
+                const season = episode ? seasons.find(s => s.id === episode.season_id) : null;
+                const movie = season ? movies.find(m => m.id === season.movie_id) : null;
+                
+                return (
+                  <div
+                    key={history.episode_id}
+                    className="flex items-center gap-3 p-3 bg-gray-800 rounded-lg"
+                  >
+                    <Play className="w-4 h-4 text-red-500" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {episode?.name || "Bilinmeyen bölüm"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(history.watched_at).toLocaleDateString("tr-TR")}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Movie Confirmation */}
+      <AlertDialog open={!!movieToDelete} onOpenChange={() => setMovieToDelete(null)}>
+        <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Filmi Sil</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              "{movieToDelete?.title}" filmini ve tüm sezon/bölümlerini silmek istediğinize emin misiniz? Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-gray-800 border-gray-700 hover:bg-gray-700">
+              İptal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMovie}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Manage Links Dialog */}
       <Dialog open={showManageLinksDialog} onOpenChange={setShowManageLinksDialog}>

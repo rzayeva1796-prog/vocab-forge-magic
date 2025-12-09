@@ -228,6 +228,7 @@ export type Database = {
       }
       movies: {
         Row: {
+          category: string | null
           cover_url: string | null
           created_at: string
           id: string
@@ -235,6 +236,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          category?: string | null
           cover_url?: string | null
           created_at?: string
           id?: string
@@ -242,6 +244,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          category?: string | null
           cover_url?: string | null
           created_at?: string
           id?: string
@@ -538,6 +541,41 @@ export type Database = {
             columns: ["word_id"]
             isOneToOne: false
             referencedRelation: "learned_words"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      watch_history: {
+        Row: {
+          completed: boolean | null
+          episode_id: string
+          id: string
+          progress_seconds: number | null
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          completed?: boolean | null
+          episode_id: string
+          id?: string
+          progress_seconds?: number | null
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          completed?: boolean | null
+          episode_id?: string
+          id?: string
+          progress_seconds?: number | null
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watch_history_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
             referencedColumns: ["id"]
           },
         ]
