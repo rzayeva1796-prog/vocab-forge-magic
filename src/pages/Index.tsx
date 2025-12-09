@@ -143,10 +143,10 @@ const Index = () => {
         });
         translationResult = data.result;
         
-        // Add to database as 1k word
+        // Add to database as 1k word (lowercase)
         await supabase.from("words").insert({
-          english: isSwapped ? translationResult : searchWord,
-          turkish: isSwapped ? searchWord : translationResult,
+          english: (isSwapped ? translationResult : searchWord).toLowerCase(),
+          turkish: (isSwapped ? searchWord : translationResult).toLowerCase(),
           frequency_group: "1k",
         });
       }
@@ -247,8 +247,8 @@ const Index = () => {
 
     if (wordData) {
       await supabase.from("learned_words").insert({
-        english: wordData.english,
-        turkish: wordData.turkish,
+        english: wordData.english.toLowerCase(),
+        turkish: wordData.turkish.toLowerCase(),
         frequency_group: wordData.frequency_group,
       });
       
@@ -288,8 +288,9 @@ const Index = () => {
       return;
     }
 
-    const englishWord = isSwapped ? translation : inputWord;
-    const turkishWord = isSwapped ? inputWord : translation;
+    // Convert to lowercase for consistent storage
+    const englishWord = (isSwapped ? translation : inputWord).trim().toLowerCase();
+    const turkishWord = (isSwapped ? inputWord : translation).trim().toLowerCase();
 
     // Check if word exists in words table
     const { data: wordData } = await supabase
