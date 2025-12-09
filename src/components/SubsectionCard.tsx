@@ -238,25 +238,26 @@ export const SubsectionCard = ({
       <div
         className={cn(
           "relative flex items-center gap-3",
-          isLeft ? "self-center -translate-x-16" : "self-center translate-x-16"
+          isLeft ? "self-center -translate-x-12" : "self-center translate-x-12"
         )}
       >
-        {/* Connection line - zigzag path */}
+        {/* Connection line - curved path to previous subsection */}
         {index > 0 && (
           <svg
-            className="absolute -top-12 left-1/2 -translate-x-1/2"
-            width="140"
-            height="48"
-            viewBox="0 0 140 48"
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{ top: '-80px' }}
+            width="100"
+            height="80"
+            viewBox="0 0 100 80"
             fill="none"
           >
             <path
               d={isLeft 
-                ? "M 140 0 Q 70 24 0 48" 
-                : "M 0 0 Q 70 24 140 48"
+                ? "M 90 0 C 90 40, 10 40, 10 80" 
+                : "M 10 0 C 10 40, 90 40, 90 80"
               }
-              stroke="hsl(var(--muted))"
-              strokeWidth="3"
+              stroke="hsl(var(--muted-foreground))"
+              strokeWidth="2"
               strokeLinecap="round"
               fill="none"
             />
