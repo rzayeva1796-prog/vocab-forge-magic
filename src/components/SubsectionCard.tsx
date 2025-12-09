@@ -8,23 +8,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+interface Subsection {
+  id: string;
+  section_id: string;
+  package_id: string | null;
+  icon_url: string | null;
+  display_order: number;
+  package_name?: string;
+  word_count?: number;
+  unlocked?: boolean;
+  min_star_rating?: number;
+}
+
 interface SubsectionCardProps {
-  subsection: {
-    id: string;
-    section_id: string;
-    package_id: string | null;
-    icon_url: string | null;
-    display_order: number;
-    package_name?: string;
-    word_count?: number;
-    unlocked?: boolean;
-    min_star_rating?: number; // New: minimum star rating of words in package
-  };
+  subsection: Subsection;
   index: number;
   isAdmin: boolean;
   availablePackages: { id: string; name: string }[];
   onUpdate: () => void;
   onDelete?: (id: string) => void;
+  onReorder?: (draggedId: string, targetId: string) => void;
+  allSubsections?: Subsection[];
 }
 
 export const SubsectionCard = ({
@@ -34,9 +38,12 @@ export const SubsectionCard = ({
   availablePackages,
   onUpdate,
   onDelete,
+  onReorder,
+  allSubsections = [],
 }: SubsectionCardProps) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [isDragOver, setIsDragOver] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -237,15 +244,17 @@ export const SubsectionCard = ({
     <>
       <div
         className={cn(
-          "relative flex items-center gap-3",
+          "relative flex items-center gap-3 transition-all duration-200",
           isLeft ? "self-center -translate-x-12" : "self-center translate-x-12",
-          isAdmin && "cursor-grab active:cursor-grabbing"
+          isAdmin && "cursor-grab active:cursor-grabbing",
+          isDragOver && "scale-110 ring-2 ring-primary"
         )}
         draggable={isAdmin}
         onDragStart={(e) => {
           if (isAdmin) {
             e.dataTransfer.setData("subsection-id", subsection.id);
             e.dataTransfer.setData("subsection-order", String(subsection.display_order));
+            e.dataTransfer.setData("section-id", subsection.section_id);
             e.dataTransfer.effectAllowed = "move";
           }
         }}
@@ -253,34 +262,45 @@ export const SubsectionCard = ({
           if (isAdmin) {
             e.preventDefault();
             e.dataTransfer.dropEffect = "move";
+            setIsDragOver(true);
           }
         }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDragEnd={() => setIsDragOver(false)}
         onDrop={async (e) => {
           if (!isAdmin) return;
           e.preventDefault();
+          setIsDragOver(false);
+          
           const draggedId = e.dataTransfer.getData("subsection-id");
           const draggedOrder = parseInt(e.dataTransfer.getData("subsection-order"));
+          const draggedSectionId = e.dataTransfer.getData("section-id");
           
-          if (draggedId && draggedId !== subsection.id) {
+          // Only allow reorder within same section
+          if (draggedId && draggedId !== subsection.id && draggedSectionId === subsection.section_id) {
             try {
-              // Swap display_order values
               const targetOrder = subsection.display_order;
               
-              await supabase
-                .from("subsections")
-                .update({ display_order: targetOrder })
-                .eq("id", draggedId);
+              // Update local state immediately
+              onReorder?.(draggedId, subsection.id);
               
-              await supabase
-                .from("subsections")
-                .update({ display_order: draggedOrder })
-                .eq("id", subsection.id);
+              // Update database in background
+              await Promise.all([
+                supabase
+                  .from("subsections")
+                  .update({ display_order: targetOrder })
+                  .eq("id", draggedId),
+                supabase
+                  .from("subsections")
+                  .update({ display_order: draggedOrder })
+                  .eq("id", subsection.id)
+              ]);
               
               toast.success("Sıralama güncellendi");
-              onUpdate();
             } catch (error) {
               console.error("Error reordering:", error);
               toast.error("Sıralama güncellenemedi");
+              onUpdate(); // Reload on error
             }
           }
         }}
