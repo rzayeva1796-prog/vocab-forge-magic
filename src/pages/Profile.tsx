@@ -123,12 +123,12 @@ const Profile = () => {
     
     console.log('[24h Reset] Starting reset process...');
     
-    // First, get all profiles with their daily XP and add to period_xp
+    // First, get all profiles with their daily XP
     const { data: allProfiles, error: profilesError } = await supabase
       .from('profiles')
       .select('user_id, tetris_xp, kart_xp, eslestirme_xp, kitap_xp');
     
-    console.log('[24h Reset] Fetched profiles:', allProfiles, 'Error:', profilesError);
+    console.log('[24h Reset] Fetched profiles:', allProfiles?.length, 'Error:', profilesError);
     
     if (allProfiles && allProfiles.length > 0) {
       // For each user, add their daily XP to period_xp
@@ -137,30 +137,35 @@ const Profile = () => {
         console.log(`[24h Reset] User ${p.user_id} daily total: ${dailyTotal}`);
         
         if (dailyTotal > 0) {
-          // Get current period_xp
+          // Get current period_xp and update it
           const { data: leagueData, error: leagueError } = await supabase
             .from('user_leagues')
             .select('period_xp')
             .eq('user_id', p.user_id)
             .maybeSingle();
           
-          console.log(`[24h Reset] User ${p.user_id} league data:`, leagueData, 'Error:', leagueError);
+          console.log(`[24h Reset] User league data:`, leagueData, 'Error:', leagueError);
           
           if (leagueData) {
             const newPeriodXp = (leagueData.period_xp || 0) + dailyTotal;
-            console.log(`[24h Reset] Updating period_xp to ${newPeriodXp} for user ${p.user_id}`);
+            console.log(`[24h Reset] Updating period_xp from ${leagueData.period_xp} to ${newPeriodXp}`);
             
-            // Add daily XP to period_xp
             const { error: updateError } = await supabase
               .from('user_leagues')
               .update({ period_xp: newPeriodXp })
               .eq('user_id', p.user_id);
             
             if (updateError) {
-              console.error(`[24h Reset] Error updating period_xp for user ${p.user_id}:`, updateError);
+              console.error(`[24h Reset] Update error:`, updateError);
             } else {
-              console.log(`[24h Reset] Successfully updated period_xp for user ${p.user_id}`);
+              console.log(`[24h Reset] Successfully updated period_xp`);
             }
+          } else if (!leagueData && !leagueError) {
+            // User doesn't have a league entry yet, create one
+            console.log(`[24h Reset] Creating league entry for user ${p.user_id}`);
+            await supabase
+              .from('user_leagues')
+              .insert({ user_id: p.user_id, period_xp: dailyTotal, current_league: 'bronze' });
           }
         }
       }
