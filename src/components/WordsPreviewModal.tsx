@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2, Check } from "lucide-react";
+import { Volume2, Loader2, Check, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -36,6 +36,30 @@ export const WordsPreviewModal = ({
   const [loading, setLoading] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
+  const [ttsSupported, setTtsSupported] = useState(true);
+
+  // Check TTS support on mount
+  useEffect(() => {
+    const checkTtsSupport = () => {
+      if (!('speechSynthesis' in window)) {
+        setTtsSupported(false);
+        return;
+      }
+      
+      // Try to initialize speech synthesis
+      try {
+        window.speechSynthesis.cancel();
+        // Some browsers need a user gesture first, so we mark as supported
+        // but will handle errors gracefully when speaking
+        setTtsSupported(true);
+      } catch (e) {
+        console.warn("TTS initialization error:", e);
+        setTtsSupported(false);
+      }
+    };
+
+    checkTtsSupport();
+  }, []);
 
   useEffect(() => {
     if (open && packageId) {
@@ -62,20 +86,19 @@ export const WordsPreviewModal = ({
     }
   };
 
-  const playAudio = async (word: Word) => {
+  const playAudio = useCallback(async (word: Word) => {
+    if (!ttsSupported) {
+      toast.error("Tarayıcınız sesli okumayı desteklemiyor. Lütfen Chrome veya Safari kullanın.");
+      return;
+    }
+
     setPlayingId(word.id);
     
     try {
-      if (!('speechSynthesis' in window)) {
-        toast.error("Tarayıcınız sesli okumayı desteklemiyor");
-        setPlayingId(null);
-        return;
-      }
-
       // Cancel any ongoing speech
       window.speechSynthesis.cancel();
 
-      const speak = () => {
+      const speak = (attempts = 0) => {
         const utterance = new SpeechSynthesisUtterance(word.english);
         utterance.lang = 'en-US';
         utterance.rate = 0.85;
@@ -83,34 +106,56 @@ export const WordsPreviewModal = ({
         
         // Find an English voice
         const voices = window.speechSynthesis.getVoices();
-        const englishVoice = voices.find(v => v.lang.startsWith('en-US')) 
-          || voices.find(v => v.lang.startsWith('en'));
-        if (englishVoice) {
-          utterance.voice = englishVoice;
+        if (voices.length > 0) {
+          const englishVoice = voices.find(v => v.lang.startsWith('en-US')) 
+            || voices.find(v => v.lang.startsWith('en'))
+            || voices[0]; // Fallback to first available voice
+          if (englishVoice) {
+            utterance.voice = englishVoice;
+          }
         }
         
         utterance.onend = () => setPlayingId(null);
         utterance.onerror = (e) => {
           console.error("Speech synthesis error:", e);
-          setPlayingId(null);
+          // Retry once if error
+          if (attempts < 1 && e.error !== 'canceled') {
+            setTimeout(() => speak(attempts + 1), 200);
+          } else {
+            setPlayingId(null);
+            if (e.error !== 'canceled') {
+              toast.error("Ses çalınamadı. Tarayıcınızı yeniden başlatmayı deneyin.");
+            }
+          }
         };
         
         window.speechSynthesis.speak(utterance);
       };
 
-      // Voices may not be loaded yet, wait for them
+      // Voices may not be loaded yet
       const voices = window.speechSynthesis.getVoices();
       if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          speak();
+        // Wait for voices to load
+        const handleVoicesChanged = () => {
           window.speechSynthesis.onvoiceschanged = null;
+          speak();
         };
-        // Fallback timeout
+        
+        window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+        
+        // Fallback timeout - if voices don't load in 500ms, try speaking anyway
         setTimeout(() => {
-          if (playingId === word.id) {
+          window.speechSynthesis.onvoiceschanged = null;
+          const retryVoices = window.speechSynthesis.getVoices();
+          if (retryVoices.length === 0) {
+            // No voices available - browser may not support TTS fully
+            setPlayingId(null);
+            toast.error("Sesli okuma bu tarayıcıda desteklenmiyor. Chrome veya Safari kullanın.");
+            setTtsSupported(false);
+          } else {
             speak();
           }
-        }, 100);
+        }, 500);
       } else {
         speak();
       }
@@ -119,7 +164,7 @@ export const WordsPreviewModal = ({
       toast.error("Ses çalınamadı");
       setPlayingId(null);
     }
-  };
+  }, [ttsSupported]);
 
   const handleActivate = async () => {
     if (!user) {
@@ -177,10 +222,13 @@ export const WordsPreviewModal = ({
                       size="sm"
                       className="h-8 w-8 p-0"
                       onClick={() => playAudio(word)}
-                      disabled={playingId === word.id}
+                      disabled={playingId === word.id || !ttsSupported}
+                      title={!ttsSupported ? "Tarayıcınız sesli okumayı desteklemiyor" : "Sesli oku"}
                     >
                       {playingId === word.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : !ttsSupported ? (
+                        <VolumeX className="w-4 h-4 text-muted-foreground" />
                       ) : (
                         <Volume2 className="w-4 h-4" />
                       )}

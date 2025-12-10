@@ -1,7 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,6 +44,7 @@ export const SubsectionCard = ({
   allSubsections = [],
 }: SubsectionCardProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [isDragOver, setIsDragOver] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
@@ -55,22 +56,92 @@ export const SubsectionCard = ({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adjustingStars, setAdjustingStars] = useState(false);
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Key for forcing modal re-render when returning from game
+  const [modalKey, setModalKey] = useState(0);
+
+  // Reset modal key when location changes (returning from game)
+  useEffect(() => {
+    setModalKey(prev => prev + 1);
+  }, [location.pathname]);
 
   const starRating = subsection.min_star_rating ?? 0;
   const isLeft = index % 2 === 0;
 
+  // Touch handlers for horizontal drag reordering (admin only)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isAdmin) return;
+    setDragStartX(e.touches[0].clientX);
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isAdmin || dragStartX === null) return;
+    const currentX = e.touches[0].clientX;
+    const offset = currentX - dragStartX;
+    setDragOffset(offset);
+  };
+
+  const handleTouchEnd = async () => {
+    if (!isAdmin || !isDragging) return;
+    
+    // Determine if we should swap with adjacent subsection
+    const threshold = 80; // pixels to trigger swap
+    
+    if (Math.abs(dragOffset) > threshold) {
+      const sectionSubs = allSubsections
+        .filter(s => s.section_id === subsection.section_id)
+        .sort((a, b) => a.display_order - b.display_order);
+      
+      const currentIdx = sectionSubs.findIndex(s => s.id === subsection.id);
+      
+      if (dragOffset > 0 && currentIdx < sectionSubs.length - 1) {
+        // Swipe right - swap with next
+        const nextSub = sectionSubs[currentIdx + 1];
+        await swapSubsections(subsection, nextSub);
+      } else if (dragOffset < 0 && currentIdx > 0) {
+        // Swipe left - swap with previous
+        const prevSub = sectionSubs[currentIdx - 1];
+        await swapSubsections(subsection, prevSub);
+      }
+    }
+    
+    setDragStartX(null);
+    setDragOffset(0);
+    setIsDragging(false);
+  };
+
+  const swapSubsections = async (sub1: Subsection, sub2: Subsection) => {
+    try {
+      const order1 = sub1.display_order;
+      const order2 = sub2.display_order;
+      
+      await Promise.all([
+        supabase.from("subsections").update({ display_order: order2 }).eq("id", sub1.id),
+        supabase.from("subsections").update({ display_order: order1 }).eq("id", sub2.id)
+      ]);
+      
+      toast.success("Sıralama güncellendi");
+      onUpdate();
+    } catch (error) {
+      console.error("Error swapping subsections:", error);
+      toast.error("Sıralama güncellenemedi");
+    }
+  };
+
   const handleClick = () => {
     if (isAdmin) {
-      // Admin clicks icon to change it or select package
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        // Navigate to game selection with this package
         navigate(`/game?package_id=${subsection.package_id}`);
       }
     } else {
-      // User clicks to play
       if (subsection.package_id && subsection.unlocked) {
         navigate(`/game?package_id=${subsection.package_id}`);
       }
@@ -111,7 +182,6 @@ export const SubsectionCard = ({
 
     setUploading(true);
     try {
-      // Upload to storage
       const fileExt = file.name.split(".").pop();
       const fileName = `subsection-${subsection.id}-${Date.now()}.${fileExt}`;
       const filePath = `subsection-icons/${fileName}`;
@@ -122,12 +192,10 @@ export const SubsectionCard = ({
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from("avatars")
         .getPublicUrl(filePath);
 
-      // Update subsection with icon URL
       const { error: updateError } = await supabase
         .from("subsections")
         .update({ icon_url: urlData.publicUrl })
@@ -171,7 +239,6 @@ export const SubsectionCard = ({
     
     setAdjustingStars(true);
     try {
-      // Get all words in this package
       const { data: words } = await supabase
         .from("learned_words")
         .select("id")
@@ -184,7 +251,6 @@ export const SubsectionCard = ({
 
       const wordIds = words.map(w => w.id);
 
-      // Get existing progress for these words
       const { data: existingProgress } = await supabase
         .from("user_word_progress")
         .select("word_id, star_rating")
@@ -196,7 +262,6 @@ export const SubsectionCard = ({
         existingMap[p.word_id] = p.star_rating;
       });
 
-      // Prepare upsert data
       const upsertData = wordIds.map(wordId => {
         const currentRating = existingMap[wordId] ?? 0;
         const newRating = Math.max(0, Math.min(5, currentRating + delta));
@@ -207,7 +272,6 @@ export const SubsectionCard = ({
         };
       });
 
-      // Upsert all progress
       const { error } = await supabase
         .from("user_word_progress")
         .upsert(upsertData, { onConflict: "user_id,word_id" });
@@ -224,7 +288,6 @@ export const SubsectionCard = ({
     }
   };
 
-  // Render 5 stars based on min_star_rating
   const renderStars = () => {
     return (
       <div className="flex gap-0.5 mt-1">
@@ -246,12 +309,18 @@ export const SubsectionCard = ({
   return (
     <>
       <div
+        ref={cardRef}
         className={cn(
           "relative flex items-center gap-3 transition-all duration-200",
           isLeft ? "self-center -translate-x-12" : "self-center translate-x-12",
-          isAdmin && "cursor-grab active:cursor-grabbing",
+          isAdmin && "cursor-grab active:cursor-grabbing touch-none",
           isDragOver && "scale-110 ring-2 ring-primary"
         )}
+        style={{
+          transform: isDragging 
+            ? `translateX(${dragOffset}px) ${isLeft ? 'translateX(-3rem)' : 'translateX(3rem)'}` 
+            : undefined,
+        }}
         draggable={isAdmin}
         onDragStart={(e) => {
           if (isAdmin) {
@@ -279,15 +348,11 @@ export const SubsectionCard = ({
           const draggedOrder = parseInt(e.dataTransfer.getData("subsection-order"));
           const draggedSectionId = e.dataTransfer.getData("section-id");
           
-          // Only allow reorder within same section
           if (draggedId && draggedId !== subsection.id && draggedSectionId === subsection.section_id) {
             try {
               const targetOrder = subsection.display_order;
-              
-              // Update local state immediately
               onReorder?.(draggedId, subsection.id);
               
-              // Update database in background
               await Promise.all([
                 supabase
                   .from("subsections")
@@ -303,12 +368,14 @@ export const SubsectionCard = ({
             } catch (error) {
               console.error("Error reordering:", error);
               toast.error("Sıralama güncellenemedi");
-              onUpdate(); // Reload on error
+              onUpdate();
             }
           }
         }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-
         {/* Main circle button */}
         <div className="flex flex-col items-center">
           <button
@@ -351,7 +418,6 @@ export const SubsectionCard = ({
             )}
           </button>
 
-          {/* 5-star rating display under the icon */}
           {subsection.package_id && (subsection.unlocked || isAdmin) && renderStars()}
         </div>
 
@@ -371,7 +437,6 @@ export const SubsectionCard = ({
             </span>
           )}
 
-          {/* View words button - show for packages with words */}
           {subsection.package_id && (
             <Button
               variant="outline"
@@ -387,7 +452,6 @@ export const SubsectionCard = ({
             </Button>
           )}
           
-          {/* Admin star adjustment buttons */}
           {isAdmin && subsection.package_id && (
             <div className="flex gap-1 mt-1">
               <Button
@@ -417,7 +481,6 @@ export const SubsectionCard = ({
             </div>
           )}
           
-          {/* Admin delete button */}
           {isAdmin && (
             <Button
               variant="ghost"
@@ -517,9 +580,10 @@ export const SubsectionCard = ({
         </DialogContent>
       </Dialog>
 
-      {/* Words Preview Modal */}
+      {/* Words Preview Modal - key forces re-render when returning from game */}
       {subsection.package_id && (
         <WordsPreviewModal
+          key={`${subsection.id}-${modalKey}`}
           open={showWordsPreview}
           onOpenChange={setShowWordsPreview}
           packageId={subsection.package_id}
