@@ -12,6 +12,7 @@ interface Section {
   name: string;
   display_order: number;
   min_star_rating?: number;
+  background_url?: string | null;
 }
 
 interface Subsection {
@@ -181,6 +182,7 @@ const Words = () => {
         return {
           ...section,
           min_star_rating: minSubRating,
+          background_url: (section as any).background_url,
         };
       });
 
@@ -323,6 +325,9 @@ const Words = () => {
                 isLocked={isSectionLocked(sectionIdx)}
                 onToggle={() => toggleSection(section.id)}
                 onUpdateName={handleUpdateSectionName}
+                onUpdateBackground={(id, url) => {
+                  setSections(prev => prev.map(s => s.id === id ? { ...s, background_url: url } : s));
+                }}
               >
                 <div className="flex flex-col items-center gap-20 py-4">
                   {subsections

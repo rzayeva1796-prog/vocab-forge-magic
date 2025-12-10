@@ -401,18 +401,21 @@ export type Database = {
       }
       sections: {
         Row: {
+          background_url: string | null
           created_at: string
           display_order: number | null
           id: string
           name: string
         }
         Insert: {
+          background_url?: string | null
           created_at?: string
           display_order?: number | null
           id?: string
           name?: string
         }
         Update: {
+          background_url?: string | null
           created_at?: string
           display_order?: number | null
           id?: string
