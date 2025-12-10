@@ -12,7 +12,7 @@ export const useDailyLogin = () => {
       // Get user profile
       const { data: profile } = await supabase
         .from('profiles')
-        .select('login_streak, last_login_date, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
+        .select('login_streak, last_login_date, last_activity_at, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -34,52 +34,60 @@ export const useDailyLogin = () => {
       const totalDailyXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
                           (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
 
-      const lastLoginDate = profile.last_login_date 
-        ? new Date(profile.last_login_date) 
+      // Check if user was already active in THIS current 24h period
+      // We use last_activity_at timestamp for precise comparison
+      const lastActivityAt = profile.last_activity_at 
+        ? new Date(profile.last_activity_at) 
         : null;
 
-      // Check how many 24h periods have passed since last login
-      let periodsMissed = 0;
-      if (lastLoginDate) {
-        const msSinceLastLogin = dailyPeriodStart.getTime() - lastLoginDate.getTime();
-        periodsMissed = Math.floor(msSinceLastLogin / (24 * 60 * 60 * 1000));
+      // User already got their +1 for this period if:
+      // their last_activity_at is after the current period started
+      const alreadyCountedThisPeriod = lastActivityAt && 
+        lastActivityAt.getTime() >= dailyPeriodStart.getTime();
+
+      // If already counted, just return current streak without updating
+      if (alreadyCountedThisPeriod) {
+        return { streak: profile.login_streak || 0, isNewDay: false };
       }
 
-      let newStreak = profile.login_streak || 0;
-      let isNewDay = false;
-
-      // User has daily XP > 0 in current period = they're active today
+      // User has NOT been counted in this period yet
+      // Check if they earned any XP today (are they active?)
       if (totalDailyXp > 0) {
-        // Check if last_login_date is already in the current 24h period
-        const lastLoginInCurrentPeriod = lastLoginDate && 
-          lastLoginDate.getTime() >= dailyPeriodStart.getTime();
-        
-        if (!lastLoginInCurrentPeriod) {
-          // First activity in this 24h period - increment streak ONLY ONCE
-          isNewDay = true;
-          
-          if (periodsMissed >= 2) {
-            // Missed 2+ periods, reset streak to 1
-            newStreak = 1;
-          } else {
-            // Consecutive period or first login ever - increment by 1
-            newStreak = (profile.login_streak || 0) + 1;
-          }
-          
-          // Update profile with new streak and login date (marks this period as "done")
-          await supabase
-            .from('profiles')
-            .update({
-              login_streak: newStreak,
-              last_login_date: now.toISOString().split('T')[0],
-              last_activity_at: now.toISOString()
-            })
-            .eq('user_id', user.id);
+        // Calculate periods missed since last activity
+        let periodsMissed = 0;
+        if (lastActivityAt) {
+          const msSinceLastActivity = dailyPeriodStart.getTime() - lastActivityAt.getTime();
+          periodsMissed = Math.floor(msSinceLastActivity / (24 * 60 * 60 * 1000));
         }
-        // If lastLoginInCurrentPeriod is true, user already got their +1 for this period
+
+        let newStreak: number;
+        
+        if (periodsMissed >= 2) {
+          // Missed 2+ periods, reset streak to 1
+          newStreak = 1;
+        } else if (!lastActivityAt) {
+          // First login ever
+          newStreak = 1;
+        } else {
+          // Consecutive period - increment by 1
+          newStreak = (profile.login_streak || 0) + 1;
+        }
+        
+        // Update profile - this marks current period as "done"
+        await supabase
+          .from('profiles')
+          .update({
+            login_streak: newStreak,
+            last_login_date: now.toISOString().split('T')[0],
+            last_activity_at: now.toISOString()
+          })
+          .eq('user_id', user.id);
+
+        return { streak: newStreak, isNewDay: true };
       }
 
-      return { streak: newStreak, isNewDay };
+      // No XP earned yet today, don't increment streak
+      return { streak: profile.login_streak || 0, isNewDay: false };
     } catch (error) {
       console.error('Error updating daily login:', error);
       return null;
@@ -93,7 +101,7 @@ export const useDailyLogin = () => {
     try {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('login_streak, last_login_date, tetris_xp, kart_xp, eslestirme_xp, kitap_xp')
+        .select('login_streak, last_activity_at')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -108,14 +116,14 @@ export const useDailyLogin = () => {
       if (!globalSettings) return;
 
       const dailyPeriodStart = new Date(globalSettings.daily_period_start);
-      const lastLoginDate = profile.last_login_date 
-        ? new Date(profile.last_login_date) 
+      const lastActivityAt = profile.last_activity_at 
+        ? new Date(profile.last_activity_at) 
         : null;
 
       // Calculate how many 24h periods have passed
-      if (lastLoginDate) {
-        const msSinceLastLogin = dailyPeriodStart.getTime() - lastLoginDate.getTime();
-        const periodsMissed = Math.floor(msSinceLastLogin / (24 * 60 * 60 * 1000));
+      if (lastActivityAt) {
+        const msSinceLastActivity = dailyPeriodStart.getTime() - lastActivityAt.getTime();
+        const periodsMissed = Math.floor(msSinceLastActivity / (24 * 60 * 60 * 1000));
 
         // If 2+ periods missed, reset streak
         if (periodsMissed >= 2) {
