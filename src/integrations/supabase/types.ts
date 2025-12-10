@@ -425,6 +425,7 @@ export type Database = {
       }
       subsections: {
         Row: {
+          background_url: string | null
           created_at: string
           display_order: number | null
           icon_url: string | null
@@ -433,6 +434,7 @@ export type Database = {
           section_id: string
         }
         Insert: {
+          background_url?: string | null
           created_at?: string
           display_order?: number | null
           icon_url?: string | null
@@ -441,6 +443,7 @@ export type Database = {
           section_id: string
         }
         Update: {
+          background_url?: string | null
           created_at?: string
           display_order?: number | null
           icon_url?: string | null
