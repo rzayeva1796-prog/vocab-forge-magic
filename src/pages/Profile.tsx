@@ -121,29 +121,46 @@ const Profile = () => {
   const handleAuto24HourReset = async () => {
     const now = new Date();
     
+    console.log('[24h Reset] Starting reset process...');
+    
     // First, get all profiles with their daily XP and add to period_xp
-    const { data: allProfiles } = await supabase
+    const { data: allProfiles, error: profilesError } = await supabase
       .from('profiles')
       .select('user_id, tetris_xp, kart_xp, eslestirme_xp, kitap_xp');
     
-    if (allProfiles) {
+    console.log('[24h Reset] Fetched profiles:', allProfiles, 'Error:', profilesError);
+    
+    if (allProfiles && allProfiles.length > 0) {
       // For each user, add their daily XP to period_xp
       for (const p of allProfiles) {
         const dailyTotal = (p.tetris_xp || 0) + (p.kart_xp || 0) + (p.eslestirme_xp || 0) + (p.kitap_xp || 0);
+        console.log(`[24h Reset] User ${p.user_id} daily total: ${dailyTotal}`);
+        
         if (dailyTotal > 0) {
           // Get current period_xp
-          const { data: leagueData } = await supabase
+          const { data: leagueData, error: leagueError } = await supabase
             .from('user_leagues')
             .select('period_xp')
             .eq('user_id', p.user_id)
             .maybeSingle();
           
+          console.log(`[24h Reset] User ${p.user_id} league data:`, leagueData, 'Error:', leagueError);
+          
           if (leagueData) {
+            const newPeriodXp = (leagueData.period_xp || 0) + dailyTotal;
+            console.log(`[24h Reset] Updating period_xp to ${newPeriodXp} for user ${p.user_id}`);
+            
             // Add daily XP to period_xp
-            await supabase
+            const { error: updateError } = await supabase
               .from('user_leagues')
-              .update({ period_xp: (leagueData.period_xp || 0) + dailyTotal })
+              .update({ period_xp: newPeriodXp })
               .eq('user_id', p.user_id);
+            
+            if (updateError) {
+              console.error(`[24h Reset] Error updating period_xp for user ${p.user_id}:`, updateError);
+            } else {
+              console.log(`[24h Reset] Successfully updated period_xp for user ${p.user_id}`);
+            }
           }
         }
       }
