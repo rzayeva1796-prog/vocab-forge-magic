@@ -108,6 +108,7 @@ const Music = () => {
   // Audio player
   const [playingTrack, setPlayingTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   // Package unlock status
@@ -402,6 +403,23 @@ const Music = () => {
     }
   };
 
+  const isYouTubeUrl = (url: string): boolean => {
+    return url.includes("youtube.com") || url.includes("youtu.be");
+  };
+
+  const getYouTubeEmbedUrl = (url: string): string => {
+    let videoId = "";
+    if (url.includes("youtube.com/watch")) {
+      const urlParams = new URLSearchParams(url.split("?")[1]);
+      videoId = urlParams.get("v") || "";
+    } else if (url.includes("youtu.be/")) {
+      videoId = url.split("youtu.be/")[1]?.split("?")[0] || "";
+    } else if (url.includes("youtube.com/embed/")) {
+      videoId = url.split("youtube.com/embed/")[1]?.split("?")[0] || "";
+    }
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+  };
+
   const handlePlayTrack = async (track: Track) => {
     if (!isTrackUnlocked(track)) {
       toast.error("Bu parçayı dinlemek için kelime paketini tamamlayın");
@@ -425,6 +443,15 @@ const Music = () => {
       fetchListenHistory();
     }
 
+    // For YouTube URLs, show video player dialog
+    if (isYouTubeUrl(track.audio_url)) {
+      setPlayingTrack(track);
+      setShowVideoPlayer(true);
+      setIsPlaying(true);
+      return;
+    }
+
+    // For regular audio URLs
     if (playingTrack?.id === track.id) {
       if (isPlaying) {
         audioRef.current?.pause();
@@ -440,20 +467,11 @@ const Music = () => {
   };
 
   useEffect(() => {
-    if (playingTrack && audioRef.current) {
-      audioRef.current.src = getAudioUrl(playingTrack.audio_url || "");
+    if (playingTrack && audioRef.current && playingTrack.audio_url && !isYouTubeUrl(playingTrack.audio_url)) {
+      audioRef.current.src = playingTrack.audio_url;
       audioRef.current.play();
     }
   }, [playingTrack]);
-
-  const getAudioUrl = (url: string): string => {
-    // Handle YouTube and other audio sources
-    if (url.includes("youtube.com") || url.includes("youtu.be")) {
-      // For YouTube, we'll use an iframe instead
-      return url;
-    }
-    return url;
-  };
 
   const filteredMusic = musicItems.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -571,8 +589,37 @@ const Music = () => {
           )}
         </div>
 
-        {/* Audio Player Bar */}
-        {playingTrack && (
+        {/* YouTube Video Player Dialog */}
+        <Dialog open={showVideoPlayer} onOpenChange={(open) => {
+          setShowVideoPlayer(open);
+          if (!open) {
+            setIsPlaying(false);
+          }
+        }}>
+          <DialogContent className="bg-black border-purple-800 text-white max-w-3xl p-0">
+            <div className="aspect-video w-full">
+              {playingTrack?.audio_url && isYouTubeUrl(playingTrack.audio_url) && (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={getYouTubeEmbedUrl(playingTrack.audio_url)}
+                  title={playingTrack.name}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="rounded-lg"
+                />
+              )}
+            </div>
+            <div className="p-4">
+              <h3 className="font-bold text-lg">{playingTrack?.name}</h3>
+              <p className="text-gray-400 text-sm">{selectedMusic?.title}</p>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Audio Player Bar (for non-YouTube) */}
+        {playingTrack && !showVideoPlayer && playingTrack.audio_url && !isYouTubeUrl(playingTrack.audio_url) && (
           <div className="fixed bottom-0 left-0 right-0 bg-purple-950/95 backdrop-blur-sm p-4 border-t border-purple-800">
             <div className="flex items-center gap-4">
               <Button

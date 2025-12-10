@@ -50,24 +50,23 @@ export const useDailyLogin = () => {
 
       // User has daily XP > 0 in current period = they're active today
       if (totalDailyXp > 0) {
-        // Check if this is their first activity in this 24h period
+        // Check if last_login_date is already in the current 24h period
         const lastLoginInCurrentPeriod = lastLoginDate && 
           lastLoginDate.getTime() >= dailyPeriodStart.getTime();
         
         if (!lastLoginInCurrentPeriod) {
-          // First activity in this 24h period
+          // First activity in this 24h period - increment streak ONLY ONCE
           isNewDay = true;
           
           if (periodsMissed >= 2) {
             // Missed 2+ periods, reset streak to 1
             newStreak = 1;
-          } else if (periodsMissed === 1 || !lastLoginDate) {
-            // Consecutive period or first login ever
-            newStreak += 1;
+          } else {
+            // Consecutive period or first login ever - increment by 1
+            newStreak = (profile.login_streak || 0) + 1;
           }
-          // If periodsMissed === 0, already counted today
           
-          // Update profile with new streak and login date
+          // Update profile with new streak and login date (marks this period as "done")
           await supabase
             .from('profiles')
             .update({
@@ -77,6 +76,7 @@ export const useDailyLogin = () => {
             })
             .eq('user_id', user.id);
         }
+        // If lastLoginInCurrentPeriod is true, user already got their +1 for this period
       }
 
       return { streak: newStreak, isNewDay };

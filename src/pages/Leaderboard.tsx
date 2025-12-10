@@ -138,6 +138,28 @@ const Leaderboard = () => {
     return () => clearInterval(interval);
   }, [simulatedHoursOffset]);
 
+  // Auto-trigger league transitions on mount and periodically
+  useEffect(() => {
+    const checkAndTriggerTransitions = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('league-transition', {
+          body: { forceTransition: false }
+        });
+        if (data?.periodEnded) {
+          console.log('League transitions processed automatically');
+          loadBots();
+        }
+      } catch (err) {
+        console.error('Error checking league transitions:', err);
+      }
+    };
+    
+    checkAndTriggerTransitions();
+    // Check every 5 minutes
+    const interval = setInterval(checkAndTriggerTransitions, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadLeaderboardData();
@@ -359,9 +381,8 @@ const Leaderboard = () => {
     return Math.floor(totalXp);
   };
 
-  // Build leaderboard entries with bots from database
+  // Build leaderboard entries with bots from database - exactly 12 entries
   const leaderboardEntries = useMemo(() => {
-    const entries: LeaderboardEntry[] = [];
     const displayLeague = currentUserIsAdmin ? selectedLeague : userLeague;
     
     // Get hours elapsed in current period
@@ -370,14 +391,23 @@ const Leaderboard = () => {
     const adjustedNow = new Date(now.getTime() + simulatedHoursOffset * 60 * 60 * 1000);
     const hoursElapsed = Math.min(72, Math.floor((adjustedNow.getTime() - periodStart.getTime()) / (1000 * 60 * 60)));
 
-    // Get users for the display league
+    // Get all 12 bots for this league
+    const botsInLeague = bots.filter(b => b.current_league === displayLeague.id);
+    const botEntries: LeaderboardEntry[] = botsInLeague.map(bot => ({
+      id: bot.id,
+      name: bot.name,
+      avatar_url: bot.avatar_url,
+      xp: calculateBotXp(bot, hoursElapsed),
+      isBot: true,
+      isCurrentUser: false,
+      daily_xp_rate: bot.daily_xp_rate
+    }));
+
+    // Get users for the display league (non-admin only)
     const usersInLeague = allLeagueUsers[displayLeague.id] || [];
-    
-    usersInLeague.forEach(u => {
-      // Skip admin's own entry
-      if (u.user_id === user?.id && currentUserIsAdmin) return;
-      
-      entries.push({
+    const userEntries: LeaderboardEntry[] = usersInLeague
+      .filter(u => !(u.user_id === user?.id && currentUserIsAdmin))
+      .map(u => ({
         id: u.user_id,
         name: u.display_name || (u.isCurrentUser ? 'Sen' : 'Kullanıcı'),
         avatar_url: u.avatar_url,
@@ -391,39 +421,26 @@ const Leaderboard = () => {
         eslestirme_xp: u.eslestirme_xp,
         kitap_xp: u.kitap_xp,
         friendUserId: u.isFriend ? u.user_id : undefined
-      });
-    });
+      }));
     
-    // Add bots for this league from database
-    const botsInLeague = bots.filter(b => b.current_league === displayLeague.id);
-    botsInLeague.forEach(bot => {
-      const botXp = calculateBotXp(bot, hoursElapsed);
-      entries.push({
-        id: bot.id,
-        name: bot.name,
-        avatar_url: bot.avatar_url,
-        xp: botXp,
-        isBot: true,
-        isCurrentUser: false,
-        daily_xp_rate: bot.daily_xp_rate
-      });
-    });
+    // Combine all entries and sort by XP descending
+    const allEntries = [...botEntries, ...userEntries];
+    allEntries.sort((a, b) => b.xp - a.xp);
     
-    // Sort by XP descending
-    entries.sort((a, b) => b.xp - a.xp);
-    
-    // Limit to exactly 12 entries (for display purposes)
-    const limitedEntries = entries.slice(0, 12);
+    // Take only top 12 entries - this means users only appear if they beat at least one bot
+    const limitedEntries = allEntries.slice(0, 12);
     
     // Check for position change notification
     const currentPosition = limitedEntries.findIndex(e => e.isCurrentUser) + 1;
-    if (!currentUserIsAdmin && previousPositionRef.current !== null && currentPosition > previousPositionRef.current) {
+    if (!currentUserIsAdmin && previousPositionRef.current !== null && currentPosition > previousPositionRef.current && currentPosition > 0) {
       const passer = limitedEntries[currentPosition - 2];
       if (passer && getNotificationPreference() && isWithinNotificationHours()) {
         showPositionLostNotification(passer.name);
       }
     }
-    previousPositionRef.current = currentPosition;
+    if (currentPosition > 0) {
+      previousPositionRef.current = currentPosition;
+    }
     
     return limitedEntries;
   }, [userProfile, userPeriodXp, allLeagueUsers, bots, user?.id, currentUserIsAdmin, selectedLeague, userLeague, simulatedHoursOffset, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
