@@ -94,30 +94,55 @@ export const SubsectionCard = ({
   const handleTouchEnd = async () => {
     if (!isAdmin || !isDragging) return;
     
-    // Determine if we should swap with adjacent subsection
-    const threshold = 80; // pixels to trigger swap
+    // Calculate target position based on drag offset
+    const sectionSubs = allSubsections
+      .filter(s => s.section_id === subsection.section_id)
+      .sort((a, b) => a.display_order - b.display_order);
     
-    if (Math.abs(dragOffset) > threshold) {
-      const sectionSubs = allSubsections
-        .filter(s => s.section_id === subsection.section_id)
-        .sort((a, b) => a.display_order - b.display_order);
+    const currentIdx = sectionSubs.findIndex(s => s.id === subsection.id);
+    
+    // Calculate how many positions to move based on drag distance
+    const positionsToMove = Math.round(dragOffset / 100); // 100px per position
+    
+    if (positionsToMove !== 0) {
+      const targetIdx = Math.max(0, Math.min(sectionSubs.length - 1, currentIdx + positionsToMove));
       
-      const currentIdx = sectionSubs.findIndex(s => s.id === subsection.id);
-      
-      if (dragOffset > 0 && currentIdx < sectionSubs.length - 1) {
-        // Swipe right - swap with next
-        const nextSub = sectionSubs[currentIdx + 1];
-        await swapSubsections(subsection, nextSub);
-      } else if (dragOffset < 0 && currentIdx > 0) {
-        // Swipe left - swap with previous
-        const prevSub = sectionSubs[currentIdx - 1];
-        await swapSubsections(subsection, prevSub);
+      if (targetIdx !== currentIdx) {
+        await moveSubsectionToPosition(subsection, currentIdx, targetIdx, sectionSubs);
       }
     }
     
     setDragStartX(null);
     setDragOffset(0);
     setIsDragging(false);
+  };
+
+  // Move subsection to a specific position
+  const moveSubsectionToPosition = async (
+    sub: Subsection, 
+    fromIdx: number, 
+    toIdx: number, 
+    subs: Subsection[]
+  ) => {
+    try {
+      // Reorder the array
+      const newOrder = [...subs];
+      const [movedItem] = newOrder.splice(fromIdx, 1);
+      newOrder.splice(toIdx, 0, movedItem);
+      
+      // Update all display_order values
+      const updates = newOrder.map((s, idx) => 
+        supabase.from("subsections").update({ display_order: idx }).eq("id", s.id)
+      );
+      
+      await Promise.all(updates);
+      
+      toast.success("Sıralama güncellendi");
+      onUpdate();
+    } catch (error) {
+      console.error("Error moving subsection:", error);
+      toast.error("Sıralama güncellenemedi");
+    }
   };
 
   const swapSubsections = async (sub1: Subsection, sub2: Subsection) => {
@@ -408,26 +433,22 @@ export const SubsectionCard = ({
           setIsDragOver(false);
           
           const draggedId = e.dataTransfer.getData("subsection-id");
-          const draggedOrder = parseInt(e.dataTransfer.getData("subsection-order"));
           const draggedSectionId = e.dataTransfer.getData("section-id");
           
           if (draggedId && draggedId !== subsection.id && draggedSectionId === subsection.section_id) {
             try {
-              const targetOrder = subsection.display_order;
-              onReorder?.(draggedId, subsection.id);
+              // Get all subsections in this section
+              const sectionSubs = allSubsections
+                .filter(s => s.section_id === subsection.section_id)
+                .sort((a, b) => a.display_order - b.display_order);
               
-              await Promise.all([
-                supabase
-                  .from("subsections")
-                  .update({ display_order: targetOrder })
-                  .eq("id", draggedId),
-                supabase
-                  .from("subsections")
-                  .update({ display_order: draggedOrder })
-                  .eq("id", subsection.id)
-              ]);
+              const draggedIdx = sectionSubs.findIndex(s => s.id === draggedId);
+              const targetIdx = sectionSubs.findIndex(s => s.id === subsection.id);
               
-              toast.success("Sıralama güncellendi");
+              if (draggedIdx !== -1 && targetIdx !== -1) {
+                const draggedSub = sectionSubs[draggedIdx];
+                await moveSubsectionToPosition(draggedSub, draggedIdx, targetIdx, sectionSubs);
+              }
             } catch (error) {
               console.error("Error reordering:", error);
               toast.error("Sıralama güncellenemedi");

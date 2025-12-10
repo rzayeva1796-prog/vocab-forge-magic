@@ -223,8 +223,20 @@ export const SectionCard = ({
 
         {/* Section Content - Subsections */}
         {isExpanded && (
-          <div className="p-4 pt-0 border-t border-border">
-            {children}
+          <div 
+            className="p-4 pt-0 border-t border-border relative overflow-hidden"
+            style={section.background_url ? {
+              backgroundImage: `url(${section.background_url})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            } : undefined}
+          >
+            {section.background_url && (
+              <div className="absolute inset-0 bg-black/20" />
+            )}
+            <div className="relative z-10">
+              {children}
+            </div>
           </div>
         )}
       </div>
