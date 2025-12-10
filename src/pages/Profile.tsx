@@ -167,7 +167,18 @@ const Profile = () => {
     
     setDailyPeriodStart(now);
     
-    // Reload profile to show updated values
+    // Immediately update local profile state to reflect reset
+    if (profile) {
+      setProfile({
+        ...profile,
+        tetris_xp: 0,
+        kart_xp: 0,
+        eslestirme_xp: 0,
+        kitap_xp: 0
+      });
+    }
+    
+    // Reload profile to ensure sync
     loadProfile();
   };
 
