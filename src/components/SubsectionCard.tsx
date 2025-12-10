@@ -93,8 +93,13 @@ export const SubsectionCard = ({
   };
 
   const handlePointerUp = async (e: React.PointerEvent) => {
-    if (!isAdmin || !isDragging) return;
+    if (!isAdmin || !isDragging) {
+      console.log("Pointer up ignored:", { isAdmin, isDragging });
+      return;
+    }
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    
+    console.log("Pointer up - dragOffset:", dragOffset);
     
     // Calculate target position based on drag offset
     const sectionSubs = allSubsections
@@ -106,12 +111,18 @@ export const SubsectionCard = ({
     // Calculate how many positions to move based on drag distance (120px per position)
     const positionsToMove = Math.round(dragOffset / 120);
     
+    console.log("Position calculation:", { currentIdx, positionsToMove, dragOffset });
+    
     if (positionsToMove !== 0) {
       const targetIdx = Math.max(0, Math.min(sectionSubs.length - 1, currentIdx + positionsToMove));
+      
+      console.log("Target index:", { targetIdx, willMove: targetIdx !== currentIdx });
       
       if (targetIdx !== currentIdx) {
         await moveSubsectionToPosition(subsection, currentIdx, targetIdx, sectionSubs);
       }
+    } else {
+      console.log("positionsToMove is 0, not moving");
     }
     
     setDragStartX(null);
