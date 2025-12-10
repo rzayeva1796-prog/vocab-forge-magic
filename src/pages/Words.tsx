@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BottomNavigation } from "@/components/BottomNavigation";
 import { SectionCard } from "@/components/SectionCard";
 import { SubsectionCard } from "@/components/SubsectionCard";
@@ -26,6 +26,7 @@ interface Subsection {
   unlocked?: boolean;
   min_star_rating?: number;
   activated?: boolean;
+  background_url?: string | null;
 }
 
 interface WordPackage {
@@ -41,10 +42,21 @@ const Words = () => {
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const lastUnlockedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadData();
   }, [user]);
+
+  // Scroll to last unlocked subsection after data loads
+  useEffect(() => {
+    if (!loading && subsections.length > 0 && !isAdmin) {
+      setTimeout(() => {
+        lastUnlockedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  }, [loading, subsections, isAdmin]);
 
   const checkIsAdmin = async (userId: string): Promise<boolean> => {
     const { data } = await supabase
@@ -133,6 +145,7 @@ const Words = () => {
           unlocked: true,
           min_star_rating: minStarRating,
           activated: activatedSubsectionIds.has(sub.id),
+          background_url: (sub as any).background_url,
         };
       });
 
@@ -330,22 +343,48 @@ const Words = () => {
                 }}
               >
                 <div className="flex flex-col items-center gap-20 py-4">
-                  {subsections
-                    .filter(sub => sub.section_id === section.id)
-                    .sort((a, b) => a.display_order - b.display_order)
-                    .map((sub, index) => (
-                      <SubsectionCard
+                  {(() => {
+                    const sectionSubs = subsections
+                      .filter(sub => sub.section_id === section.id)
+                      .sort((a, b) => a.display_order - b.display_order);
+                    
+                    // Find last unlocked subsection index
+                    let lastUnlockedIdx = -1;
+                    sectionSubs.forEach((sub, idx) => {
+                      if (sub.unlocked) lastUnlockedIdx = idx;
+                    });
+
+                    return sectionSubs.map((sub, index) => (
+                      <div
                         key={sub.id}
-                        subsection={sub}
-                        index={index}
-                        isAdmin={isAdmin}
-                        availablePackages={packages}
-                        onUpdate={loadData}
-                        onDelete={handleDeleteSubsection}
-                        onReorder={handleReorderSubsection}
-                        allSubsections={subsections.filter(s => s.section_id === section.id)}
-                      />
-                    ))}
+                        ref={index === lastUnlockedIdx ? lastUnlockedRef : undefined}
+                      >
+                        <SubsectionCard
+                          subsection={sub}
+                          index={index}
+                          isAdmin={isAdmin}
+                          availablePackages={packages}
+                          onUpdate={loadData}
+                          onDelete={handleDeleteSubsection}
+                          onReorder={handleReorderSubsection}
+                          allSubsections={sectionSubs}
+                        />
+                      </div>
+                    ));
+                  })()}
+                  {/* Add subsection button for admin */}
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleAddSubsection(section.id)}
+                      className="mt-2"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Alt Bölüm Ekle
+                    </Button>
+                  )}
+                </div>
 
                   {/* Add subsection button for admin */}
                   {isAdmin && (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,6 +20,7 @@ interface Subsection {
   word_count?: number;
   unlocked?: boolean;
   min_star_rating?: number;
+  background_url?: string | null;
 }
 
 interface SubsectionCardProps {
@@ -49,11 +50,13 @@ export const SubsectionCard = ({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
+  const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWordsPreview, setShowWordsPreview] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adjustingStars, setAdjustingStars] = useState(false);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
@@ -61,6 +64,7 @@ export const SubsectionCard = ({
   const [isDragging, setIsDragging] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
   
   // Key for forcing modal re-render when returning from game
   const [modalKey, setModalKey] = useState(0);
@@ -211,6 +215,65 @@ export const SubsectionCard = ({
       toast.error("Simge yüklenemedi");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleBackgroundChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingBackground(true);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `subsection-bg-${subsection.id}-${Date.now()}.${fileExt}`;
+      const filePath = `subsection-backgrounds/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      const { error: updateError } = await supabase
+        .from("subsections")
+        .update({ background_url: urlData.publicUrl })
+        .eq("id", subsection.id);
+
+      if (updateError) throw updateError;
+
+      toast.success("Arka plan güncellendi");
+      setShowBackgroundDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error uploading background:", error);
+      toast.error("Arka plan yüklenemedi");
+    } finally {
+      setUploadingBackground(false);
+    }
+  };
+
+  const handleRemoveBackground = async () => {
+    setUploadingBackground(true);
+    try {
+      const { error } = await supabase
+        .from("subsections")
+        .update({ background_url: null })
+        .eq("id", subsection.id);
+
+      if (error) throw error;
+
+      toast.success("Arka plan kaldırıldı");
+      setShowBackgroundDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error removing background:", error);
+      toast.error("Arka plan kaldırılamadı");
+    } finally {
+      setUploadingBackground(false);
     }
   };
 
@@ -480,6 +543,22 @@ export const SubsectionCard = ({
               </Button>
             </div>
           )}
+
+          {/* Background Image Button for Admin */}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 mt-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowBackgroundDialog(true);
+              }}
+            >
+              <Image className="w-3 h-3 mr-1" />
+              Arka Plan
+            </Button>
+          )}
           
           {isAdmin && (
             <Button
@@ -520,6 +599,42 @@ export const SubsectionCard = ({
             <Button onClick={handleSavePackage} disabled={!selectedPackage || saving} className="w-full">
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Background Image Dialog */}
+      <Dialog open={showBackgroundDialog} onOpenChange={setShowBackgroundDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alt Bölüm Arka Planı</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              ref={backgroundInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleBackgroundChange}
+              className="hidden"
+            />
+            <Button
+              onClick={() => backgroundInputRef.current?.click()}
+              disabled={uploadingBackground}
+              className="w-full"
+            >
+              {uploadingBackground ? "Yükleniyor..." : "Fotoğraf Yükle"}
+            </Button>
+            {subsection.background_url && (
+              <Button
+                variant="destructive"
+                onClick={handleRemoveBackground}
+                disabled={uploadingBackground}
+                className="w-full"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Arka Planı Kaldır
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

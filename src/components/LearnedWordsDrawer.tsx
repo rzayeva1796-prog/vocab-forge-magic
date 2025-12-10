@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, Trash2, FolderPlus, Package, ArrowLeft, X } from "lucide-react";
+import { GraduationCap, Trash2, FolderPlus, Package, ArrowLeft, X, Pencil, Check, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   AlertDialog,
@@ -47,11 +47,61 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
   const [newPackageName, setNewPackageName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [packageWords, setPackageWords] = useState<Word[]>([]);
+  const [loadingPackageWords, setLoadingPackageWords] = useState(false);
+  const [editingWord, setEditingWord] = useState<{english: string; turkish: string} | null>(null);
+  const [editEnglish, setEditEnglish] = useState("");
+  const [editTurkish, setEditTurkish] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadPackages();
   }, []);
+
+  // Load words for selected package (handles > 1000 words)
+  useEffect(() => {
+    if (selectedPackage && selectedPackage !== "all") {
+      loadPackageWords(selectedPackage);
+    } else if (selectedPackage === "all") {
+      setPackageWords(words);
+    }
+  }, [selectedPackage, words]);
+
+  const loadPackageWords = async (packageId: string) => {
+    setLoadingPackageWords(true);
+    try {
+      // Fetch all words for package without 1000 limit by paginating
+      let allPackageWords: Word[] = [];
+      let offset = 0;
+      const limit = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("learned_words")
+          .select("english, turkish, frequency_group, package_id")
+          .eq("package_id", packageId)
+          .range(offset, offset + limit - 1)
+          .order("added_at", { ascending: false });
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allPackageWords = [...allPackageWords, ...data];
+          offset += limit;
+          hasMore = data.length === limit;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setPackageWords(allPackageWords);
+    } catch (error) {
+      console.error("Error loading package words:", error);
+    } finally {
+      setLoadingPackageWords(false);
+    }
+  };
 
   const loadPackages = async () => {
     const { data: packagesData, error: packagesError } = await supabase
@@ -63,7 +113,7 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
       return;
     }
 
-    // Count words per package
+    // Count words per package using exact count
     const packagesWithCount: WordPackage[] = await Promise.all(
       (packagesData || []).map(async (pkg) => {
         const { count } = await supabase
@@ -80,6 +130,41 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     );
 
     setPackages(packagesWithCount);
+  };
+
+  const handleEditWord = async () => {
+    if (!editingWord || !editEnglish.trim() || !editTurkish.trim()) return;
+
+    try {
+      const { error } = await supabase
+        .from("learned_words")
+        .update({
+          english: editEnglish.trim().toLowerCase(),
+          turkish: editTurkish.trim().toLowerCase(),
+        })
+        .eq("english", editingWord.english)
+        .eq("turkish", editingWord.turkish);
+
+      if (error) throw error;
+
+      toast({
+        title: "Başarılı",
+        description: "Kelime güncellendi",
+      });
+
+      setEditingWord(null);
+      if (selectedPackage && selectedPackage !== "all") {
+        loadPackageWords(selectedPackage);
+      }
+      onWordsAdded?.();
+    } catch (error) {
+      console.error("Error updating word:", error);
+      toast({
+        title: "Hata",
+        description: "Kelime güncellenemedi",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeletePackage = async (packageId: string, packageName: string) => {
@@ -333,14 +418,15 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     if (selectedPackage === null || selectedPackage === "all") {
       return words;
     }
-    return words.filter((w) => w.package_id === selectedPackage);
+    return packageWords;
   };
 
   const getPackageWordCount = (packageId: string | null) => {
     if (packageId === null || packageId === "all") {
       return words.length;
     }
-    return words.filter((w) => w.package_id === packageId).length;
+    const pkg = packages.find(p => p.id === packageId);
+    return pkg?.word_count || 0;
   };
 
   const renderMainView = () => (
@@ -499,7 +585,11 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
       </div>
 
       <ScrollArea className="h-[calc(100vh-14rem)]">
-        {getFilteredWords().length === 0 ? (
+        {loadingPackageWords ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : getFilteredWords().length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
             <p>Bu pakette kelime yok.</p>
@@ -511,23 +601,64 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
                 key={idx}
                 className="flex items-center justify-between p-3 rounded-md hover:bg-secondary/50 transition-colors group"
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{word.english}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {word.frequency_group}
-                    </Badge>
+                {editingWord?.english === word.english && editingWord?.turkish === word.turkish ? (
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      value={editEnglish}
+                      onChange={(e) => setEditEnglish(e.target.value)}
+                      placeholder="İngilizce"
+                      className="h-8"
+                    />
+                    <Input
+                      value={editTurkish}
+                      onChange={(e) => setEditTurkish(e.target.value)}
+                      placeholder="Türkçe"
+                      className="h-8"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleEditWord}>
+                        <Check className="w-3 h-3 mr-1" />
+                        Kaydet
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingWord(null)}>
+                        <X className="w-3 h-3 mr-1" />
+                        İptal
+                      </Button>
+                    </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">{word.turkish}</span>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => onRemove(word)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
+                ) : (
+                  <>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{word.english}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {word.frequency_group}
+                        </Badge>
+                      </div>
+                      <span className="text-sm text-muted-foreground">{word.turkish}</span>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingWord({ english: word.english, turkish: word.turkish });
+                          setEditEnglish(word.english);
+                          setEditTurkish(word.turkish);
+                        }}
+                      >
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onRemove(word)}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
