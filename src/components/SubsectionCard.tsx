@@ -47,7 +47,7 @@ export const SubsectionCard = ({
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const [isDragOver, setIsDragOver] = useState(false);
+  
   const [showPackageDialog, setShowPackageDialog] = useState(false);
   const [showIconDialog, setShowIconDialog] = useState(false);
   const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
@@ -77,22 +77,24 @@ export const SubsectionCard = ({
   const starRating = subsection.min_star_rating ?? 0;
   const isLeft = index % 2 === 0;
 
-  // Touch handlers for horizontal drag reordering (admin only)
-  const handleTouchStart = (e: React.TouchEvent) => {
+  // Pointer handlers for drag reordering (works on both mouse and touch)
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (!isAdmin) return;
-    setDragStartX(e.touches[0].clientX);
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    setDragStartX(e.clientX);
     setIsDragging(true);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isAdmin || dragStartX === null) return;
-    const currentX = e.touches[0].clientX;
-    const offset = currentX - dragStartX;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isAdmin || dragStartX === null || !isDragging) return;
+    const offset = e.clientX - dragStartX;
     setDragOffset(offset);
   };
 
-  const handleTouchEnd = async () => {
+  const handlePointerUp = async (e: React.PointerEvent) => {
     if (!isAdmin || !isDragging) return;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     
     // Calculate target position based on drag offset
     const sectionSubs = allSubsections
@@ -101,8 +103,8 @@ export const SubsectionCard = ({
     
     const currentIdx = sectionSubs.findIndex(s => s.id === subsection.id);
     
-    // Calculate how many positions to move based on drag distance
-    const positionsToMove = Math.round(dragOffset / 100); // 100px per position
+    // Calculate how many positions to move based on drag distance (120px per position)
+    const positionsToMove = Math.round(dragOffset / 120);
     
     if (positionsToMove !== 0) {
       const targetIdx = Math.max(0, Math.min(sectionSubs.length - 1, currentIdx + positionsToMove));
@@ -141,24 +143,6 @@ export const SubsectionCard = ({
       onUpdate();
     } catch (error) {
       console.error("Error moving subsection:", error);
-      toast.error("Sıralama güncellenemedi");
-    }
-  };
-
-  const swapSubsections = async (sub1: Subsection, sub2: Subsection) => {
-    try {
-      const order1 = sub1.display_order;
-      const order2 = sub2.display_order;
-      
-      await Promise.all([
-        supabase.from("subsections").update({ display_order: order2 }).eq("id", sub1.id),
-        supabase.from("subsections").update({ display_order: order1 }).eq("id", sub2.id)
-      ]);
-      
-      toast.success("Sıralama güncellendi");
-      onUpdate();
-    } catch (error) {
-      console.error("Error swapping subsections:", error);
       toast.error("Sıralama güncellenemedi");
     }
   };
@@ -400,73 +384,31 @@ export const SubsectionCard = ({
         ref={cardRef}
         className={cn(
           "relative flex items-center gap-3 transition-all duration-200",
-          isLeft ? "self-center -translate-x-12" : "self-center translate-x-12",
-          isDragOver && "scale-110 ring-2 ring-primary"
+          isLeft ? "self-center -translate-x-12" : "self-center translate-x-12"
         )}
         style={{
           transform: isDragging 
             ? `translateX(${dragOffset}px) ${isLeft ? 'translateX(-3rem)' : 'translateX(3rem)'}` 
             : undefined,
-        }}
-        onDragOver={(e) => {
-          if (isAdmin) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-            setIsDragOver(true);
-          }
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={async (e) => {
-          if (!isAdmin) return;
-          e.preventDefault();
-          setIsDragOver(false);
-          
-          const draggedId = e.dataTransfer.getData("subsection-id");
-          const draggedSectionId = e.dataTransfer.getData("section-id");
-          
-          if (draggedId && draggedId !== subsection.id && draggedSectionId === subsection.section_id) {
-            try {
-              const sectionSubs = allSubsections
-                .filter(s => s.section_id === subsection.section_id)
-                .sort((a, b) => a.display_order - b.display_order);
-              
-              const draggedIdx = sectionSubs.findIndex(s => s.id === draggedId);
-              const targetIdx = sectionSubs.findIndex(s => s.id === subsection.id);
-              
-              if (draggedIdx !== -1 && targetIdx !== -1) {
-                const draggedSub = sectionSubs[draggedIdx];
-                await moveSubsectionToPosition(draggedSub, draggedIdx, targetIdx, sectionSubs);
-              }
-            } catch (error) {
-              console.error("Error reordering:", error);
-              toast.error("Sıralama güncellenemedi");
-              onUpdate();
-            }
-          }
+          transition: isDragging ? 'none' : 'transform 0.3s ease-out',
         }}
       >
         {/* Drag Handle for Admin */}
         {isAdmin && (
           <div
-            draggable={true}
-            onDragStart={(e) => {
-              e.dataTransfer.setData("subsection-id", subsection.id);
-              e.dataTransfer.setData("subsection-order", String(subsection.display_order));
-              e.dataTransfer.setData("section-id", subsection.section_id);
-              e.dataTransfer.effectAllowed = "move";
-            }}
-            onDragEnd={() => setIsDragOver(false)}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             className={cn(
-              "absolute -top-3 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 rounded-full p-2 shadow-md touch-none",
-              isDragging ? "bg-primary scale-110" : "bg-muted/90 hover:bg-muted"
+              "absolute -top-3 left-1/2 cursor-grab active:cursor-grabbing z-20 rounded-full p-2 shadow-md select-none",
+              isDragging ? "bg-primary scale-125" : "bg-muted/90 hover:bg-muted border border-border"
             )}
             style={{
               transform: isDragging 
-                ? `translateX(calc(-50% + ${dragOffset}px))` 
+                ? `translateX(calc(-50% + ${dragOffset}px)) scale(1.25)` 
                 : 'translateX(-50%)',
+              transition: isDragging ? 'none' : 'transform 0.2s, background-color 0.2s',
             }}
             title="Sürükle-bırak ile taşı"
           >
