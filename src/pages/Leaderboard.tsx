@@ -437,14 +437,39 @@ const Leaderboard = () => {
     allEntries.sort((a, b) => b.xp - a.xp);
     
     // Find current user entry before limiting
-    const currentUserEntry = allEntries.find(e => e.isCurrentUser);
+    let currentUserEntry = allEntries.find(e => e.isCurrentUser);
+    
+    // If current user is in this league but not in allEntries (e.g., 0 XP after promotion),
+    // create their entry from userProfile
+    if (!currentUserEntry && !currentUserIsAdmin && userProfile && displayLeague.id === userLeague.id) {
+      const currentDailyXp = (userProfile.tetris_xp || 0) + (userProfile.kart_xp || 0) + 
+                             (userProfile.eslestirme_xp || 0) + (userProfile.kitap_xp || 0);
+      currentUserEntry = {
+        id: user?.id || '',
+        name: userProfile.display_name || 'Sen',
+        avatar_url: userProfile.avatar_url,
+        xp: userPeriodXp || currentDailyXp,
+        isBot: false,
+        isCurrentUser: true,
+        isFriend: false,
+        login_streak: userProfile.login_streak,
+        tetris_xp: userProfile.tetris_xp,
+        kart_xp: userProfile.kart_xp,
+        eslestirme_xp: userProfile.eslestirme_xp,
+        kitap_xp: userProfile.kitap_xp
+      };
+      // Add user to allEntries for proper ranking
+      allEntries.push(currentUserEntry);
+      allEntries.sort((a, b) => b.xp - a.xp);
+    }
+    
     const currentUserRank = currentUserEntry ? allEntries.findIndex(e => e.isCurrentUser) + 1 : -1;
     
     // Take top 12 entries
     let limitedEntries = allEntries.slice(0, 12);
     
-    // If current user is not in top 12, add them at the bottom with their actual rank
-    if (currentUserEntry && !limitedEntries.some(e => e.isCurrentUser)) {
+    // If current user is not in top 12 but is in this league, add them at the bottom with their actual rank
+    if (currentUserEntry && !limitedEntries.some(e => e.isCurrentUser) && displayLeague.id === userLeague.id) {
       // Remove the last bot to make room for current user
       limitedEntries = limitedEntries.slice(0, 11);
       limitedEntries.push({ ...currentUserEntry, rank: currentUserRank } as LeaderboardEntry);
