@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2, Flame, Bell, BellOff, LogOut } from "lucide-react";
+import { Camera, Gamepad2, Zap, GitCompare, BookOpen, Trophy, UserPlus, Users, Check, X, Edit2, Flame, Bell, BellOff, LogOut, Clock, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,6 +36,23 @@ interface Friendship {
   addressee_profile?: Profile;
 }
 
+// Get 24-hour countdown time remaining
+const get24HourTimeRemaining = (dailyPeriodStart: Date): { hours: number; minutes: number; seconds: number } => {
+  const now = new Date();
+  const periodEnd = new Date(dailyPeriodStart.getTime() + 24 * 60 * 60 * 1000);
+  const diff = periodEnd.getTime() - now.getTime();
+  
+  if (diff <= 0) {
+    return { hours: 0, minutes: 0, seconds: 0 };
+  }
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+  
+  return { hours, minutes, seconds };
+};
+
 const Profile = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -57,6 +74,8 @@ const Profile = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dailyTimeRemaining, setDailyTimeRemaining] = useState({ hours: 0, minutes: 0, seconds: 0 });
+  const [dailyPeriodStart, setDailyPeriodStart] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -71,8 +90,103 @@ const Profile = () => {
       updateLastActivity();
       setNotificationsEnabled(getNotificationPreference());
       checkAdminStatus();
+      loadGlobalSettings();
     }
   }, [user, authLoading]);
+
+  // Load global settings for 24h countdown
+  const loadGlobalSettings = async () => {
+    const { data } = await supabase
+      .from('global_settings')
+      .select('daily_period_start')
+      .eq('id', 'main')
+      .single();
+    
+    if (data) {
+      const periodStart = new Date(data.daily_period_start);
+      const now = new Date();
+      
+      // Check if 24 hours have passed
+      if (now.getTime() - periodStart.getTime() >= 24 * 60 * 60 * 1000) {
+        // Auto-reset the 24h countdown
+        await handleAuto24HourReset();
+      } else {
+        setDailyPeriodStart(periodStart);
+      }
+    }
+  };
+
+  // Auto-reset 24h countdown when it expires
+  const handleAuto24HourReset = async () => {
+    const now = new Date();
+    
+    // Reset global settings
+    await supabase
+      .from('global_settings')
+      .update({ daily_period_start: now.toISOString() })
+      .eq('id', 'main');
+    
+    // Reset all users' daily XP (tetris_xp, kart_xp, eslestirme_xp, kitap_xp)
+    await supabase
+      .from('profiles')
+      .update({
+        tetris_xp: 0,
+        kart_xp: 0,
+        eslestirme_xp: 0,
+        kitap_xp: 0
+      });
+    
+    setDailyPeriodStart(now);
+  };
+
+  // Update 24h countdown every second
+  useEffect(() => {
+    if (!dailyPeriodStart) return;
+    
+    const interval = setInterval(() => {
+      const remaining = get24HourTimeRemaining(dailyPeriodStart);
+      setDailyTimeRemaining(remaining);
+      
+      // Auto-reset if countdown reached 0
+      if (remaining.hours === 0 && remaining.minutes === 0 && remaining.seconds === 0) {
+        handleAuto24HourReset();
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [dailyPeriodStart]);
+
+  // Admin reset 24h countdown
+  const handleReset24Hours = async () => {
+    if (!isAdmin) return;
+    
+    try {
+      const now = new Date();
+      
+      // Reset global settings
+      await supabase
+        .from('global_settings')
+        .update({ daily_period_start: now.toISOString() })
+        .eq('id', 'main');
+      
+      // Reset all users' daily XP
+      await supabase
+        .from('profiles')
+        .update({
+          tetris_xp: 0,
+          kart_xp: 0,
+          eslestirme_xp: 0,
+          kitap_xp: 0
+        });
+      
+      setDailyPeriodStart(now);
+      
+      toast.success('24 saat sıfırlandı ve tüm günlük puanlar sıfırlandı');
+    } catch (error) {
+      console.error('Error resetting 24h:', error);
+      toast.error('Sıfırlama başarısız');
+    }
+  };
 
   const checkAdminStatus = async () => {
     if (!user) return;
@@ -435,6 +549,27 @@ const Profile = () => {
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* 24-Hour Countdown */}
+            <div className="text-center p-4 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Clock className="w-5 h-5 text-blue-500" />
+                <span className="text-sm text-muted-foreground">Günlük Süre</span>
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0"
+                    onClick={handleReset24Hours}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-2xl font-bold text-blue-500">
+                {dailyTimeRemaining.hours}s {dailyTimeRemaining.minutes}dk {dailyTimeRemaining.seconds}sn
+              </p>
+            </div>
+
             {/* Login Streak & Notifications */}
             <div className="flex gap-3">
               <div className="flex-1 text-center p-3 bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-lg">
