@@ -456,10 +456,21 @@ export const SubsectionCard = ({
               e.dataTransfer.effectAllowed = "move";
             }}
             onDragEnd={() => setIsDragOver(false)}
-            className="absolute -top-3 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 bg-muted/80 rounded-full p-1 hover:bg-muted shadow-sm"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className={cn(
+              "absolute -top-3 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 rounded-full p-2 shadow-md touch-none",
+              isDragging ? "bg-primary scale-110" : "bg-muted/90 hover:bg-muted"
+            )}
+            style={{
+              transform: isDragging 
+                ? `translateX(calc(-50% + ${dragOffset}px))` 
+                : 'translateX(-50%)',
+            }}
             title="Sürükle-bırak ile taşı"
           >
-            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+            <GripHorizontal className={cn("w-5 h-5", isDragging ? "text-primary-foreground" : "text-muted-foreground")} />
           </div>
         )}
         {/* Main circle button */}
