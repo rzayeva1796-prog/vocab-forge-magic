@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -401,22 +401,12 @@ export const SubsectionCard = ({
         className={cn(
           "relative flex items-center gap-3 transition-all duration-200",
           isLeft ? "self-center -translate-x-12" : "self-center translate-x-12",
-          isAdmin && "cursor-grab active:cursor-grabbing touch-none",
           isDragOver && "scale-110 ring-2 ring-primary"
         )}
         style={{
           transform: isDragging 
             ? `translateX(${dragOffset}px) ${isLeft ? 'translateX(-3rem)' : 'translateX(3rem)'}` 
             : undefined,
-        }}
-        draggable={isAdmin}
-        onDragStart={(e) => {
-          if (isAdmin) {
-            e.dataTransfer.setData("subsection-id", subsection.id);
-            e.dataTransfer.setData("subsection-order", String(subsection.display_order));
-            e.dataTransfer.setData("section-id", subsection.section_id);
-            e.dataTransfer.effectAllowed = "move";
-          }
         }}
         onDragOver={(e) => {
           if (isAdmin) {
@@ -426,7 +416,6 @@ export const SubsectionCard = ({
           }
         }}
         onDragLeave={() => setIsDragOver(false)}
-        onDragEnd={() => setIsDragOver(false)}
         onDrop={async (e) => {
           if (!isAdmin) return;
           e.preventDefault();
@@ -437,7 +426,6 @@ export const SubsectionCard = ({
           
           if (draggedId && draggedId !== subsection.id && draggedSectionId === subsection.section_id) {
             try {
-              // Get all subsections in this section
               const sectionSubs = allSubsections
                 .filter(s => s.section_id === subsection.section_id)
                 .sort((a, b) => a.display_order - b.display_order);
@@ -456,10 +444,24 @@ export const SubsectionCard = ({
             }
           }
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
+        {/* Drag Handle for Admin */}
+        {isAdmin && (
+          <div
+            draggable={true}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("subsection-id", subsection.id);
+              e.dataTransfer.setData("subsection-order", String(subsection.display_order));
+              e.dataTransfer.setData("section-id", subsection.section_id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={() => setIsDragOver(false)}
+            className="absolute -top-3 left-1/2 -translate-x-1/2 cursor-grab active:cursor-grabbing z-20 bg-muted/80 rounded-full p-1 hover:bg-muted shadow-sm"
+            title="Sürükle-bırak ile taşı"
+          >
+            <GripHorizontal className="w-4 h-4 text-muted-foreground" />
+          </div>
+        )}
         {/* Main circle button */}
         <div className="flex flex-col items-center">
           <button

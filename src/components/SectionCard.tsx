@@ -14,13 +14,14 @@ interface SectionCardProps {
     display_order: number;
     min_star_rating?: number;
     background_url?: string | null;
+    content_background_url?: string | null;
   };
   isAdmin: boolean;
   isExpanded: boolean;
   isLocked?: boolean;
   onToggle: () => void;
   onUpdateName: (id: string, name: string) => Promise<void>;
-  onUpdateBackground?: (id: string, url: string | null) => void;
+  onUpdateBackground?: (id: string, url: string | null, type: 'header' | 'content') => void;
   children: React.ReactNode;
 }
 
@@ -37,9 +38,11 @@ export const SectionCard = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(section.name);
   const [saving, setSaving] = useState(false);
-  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [showHeaderImageDialog, setShowHeaderImageDialog] = useState(false);
+  const [showContentImageDialog, setShowContentImageDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const headerFileInputRef = useRef<HTMLInputElement>(null);
+  const contentFileInputRef = useRef<HTMLInputElement>(null);
 
   const starRating = section.min_star_rating ?? 0;
 
@@ -56,14 +59,14 @@ export const SectionCard = ({
     setIsEditing(false);
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, type: 'header' | 'content') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploading(true);
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `section-${section.id}-${Date.now()}.${fileExt}`;
+      const fileName = `section-${type}-${section.id}-${Date.now()}.${fileExt}`;
       const filePath = `section-backgrounds/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -76,16 +79,21 @@ export const SectionCard = ({
         .from("avatars")
         .getPublicUrl(filePath);
 
+      const column = type === 'header' ? 'background_url' : 'content_background_url';
       const { error: updateError } = await supabase
         .from("sections")
-        .update({ background_url: urlData.publicUrl })
+        .update({ [column]: urlData.publicUrl })
         .eq("id", section.id);
 
       if (updateError) throw updateError;
 
-      toast.success("Arka plan güncellendi");
-      setShowImageDialog(false);
-      onUpdateBackground?.(section.id, urlData.publicUrl);
+      toast.success(type === 'header' ? "Başlık arka planı güncellendi" : "İçerik arka planı güncellendi");
+      if (type === 'header') {
+        setShowHeaderImageDialog(false);
+      } else {
+        setShowContentImageDialog(false);
+      }
+      onUpdateBackground?.(section.id, urlData.publicUrl, type);
     } catch (error) {
       console.error("Error uploading background:", error);
       toast.error("Arka plan yüklenemedi");
@@ -94,19 +102,24 @@ export const SectionCard = ({
     }
   };
 
-  const handleRemoveBackground = async () => {
+  const handleRemoveBackground = async (type: 'header' | 'content') => {
     setUploading(true);
     try {
+      const column = type === 'header' ? 'background_url' : 'content_background_url';
       const { error } = await supabase
         .from("sections")
-        .update({ background_url: null })
+        .update({ [column]: null })
         .eq("id", section.id);
 
       if (error) throw error;
 
       toast.success("Arka plan kaldırıldı");
-      setShowImageDialog(false);
-      onUpdateBackground?.(section.id, null);
+      if (type === 'header') {
+        setShowHeaderImageDialog(false);
+      } else {
+        setShowContentImageDialog(false);
+      }
+      onUpdateBackground?.(section.id, null, type);
     } catch (error) {
       console.error("Error removing background:", error);
       toast.error("Arka plan kaldırılamadı");
@@ -202,8 +215,9 @@ export const SectionCard = ({
                     className="h-7 w-7"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setShowImageDialog(true);
+                      setShowHeaderImageDialog(true);
                     }}
+                    title="Başlık Arka Planı"
                   >
                     <ImageIcon className={cn("w-3.5 h-3.5", section.background_url ? "text-white" : "text-muted-foreground")} />
                   </Button>
@@ -225,14 +239,27 @@ export const SectionCard = ({
         {isExpanded && (
           <div 
             className="p-4 pt-0 border-t border-border relative overflow-hidden"
-            style={section.background_url ? {
-              backgroundImage: `url(${section.background_url})`,
+            style={section.content_background_url ? {
+              backgroundImage: `url(${section.content_background_url})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
             } : undefined}
           >
-            {section.background_url && (
-              <div className="absolute inset-0 bg-black/20" />
+            {section.content_background_url && (
+              <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
+            )}
+            {isAdmin && (
+              <div className="relative z-20 flex justify-end mb-2 pt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setShowContentImageDialog(true)}
+                >
+                  <ImageIcon className="w-3 h-3 mr-1" />
+                  İçerik Arka Planı
+                </Button>
+              </div>
             )}
             <div className="relative z-10">
               {children}
@@ -241,22 +268,22 @@ export const SectionCard = ({
         )}
       </div>
 
-      {/* Background Image Dialog */}
-      <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+      {/* Header Background Image Dialog */}
+      <Dialog open={showHeaderImageDialog} onOpenChange={setShowHeaderImageDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Bölüm Arka Planı</DialogTitle>
+            <DialogTitle>Başlık Arka Planı</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <input
-              ref={fileInputRef}
+              ref={headerFileInputRef}
               type="file"
               accept="image/*"
-              onChange={handleFileChange}
+              onChange={(e) => handleFileChange(e, 'header')}
               className="hidden"
             />
             <Button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => headerFileInputRef.current?.click()}
               disabled={uploading}
               className="w-full"
             >
@@ -265,7 +292,43 @@ export const SectionCard = ({
             {section.background_url && (
               <Button
                 variant="destructive"
-                onClick={handleRemoveBackground}
+                onClick={() => handleRemoveBackground('header')}
+                disabled={uploading}
+                className="w-full"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Arka Planı Kaldır
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Content Background Image Dialog */}
+      <Dialog open={showContentImageDialog} onOpenChange={setShowContentImageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>İçerik Arka Planı</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              ref={contentFileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileChange(e, 'content')}
+              className="hidden"
+            />
+            <Button
+              onClick={() => contentFileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full"
+            >
+              {uploading ? "Yükleniyor..." : "Fotoğraf Yükle"}
+            </Button>
+            {section.content_background_url && (
+              <Button
+                variant="destructive"
+                onClick={() => handleRemoveBackground('content')}
                 disabled={uploading}
                 className="w-full"
               >

@@ -13,6 +13,7 @@ interface Section {
   display_order: number;
   min_star_rating?: number;
   background_url?: string | null;
+  content_background_url?: string | null;
 }
 
 interface Subsection {
@@ -338,8 +339,12 @@ const Words = () => {
                 isLocked={isSectionLocked(sectionIdx)}
                 onToggle={() => toggleSection(section.id)}
                 onUpdateName={handleUpdateSectionName}
-                onUpdateBackground={(id, url) => {
-                  setSections(prev => prev.map(s => s.id === id ? { ...s, background_url: url } : s));
+                onUpdateBackground={(id, url, type) => {
+                  if (type === 'header') {
+                    setSections(prev => prev.map(s => s.id === id ? { ...s, background_url: url } : s));
+                  } else {
+                    setSections(prev => prev.map(s => s.id === id ? { ...s, content_background_url: url } : s));
+                  }
                 }}
               >
                 <div className="flex flex-col items-center gap-20 py-4">

@@ -402,6 +402,7 @@ export type Database = {
       sections: {
         Row: {
           background_url: string | null
+          content_background_url: string | null
           created_at: string
           display_order: number | null
           id: string
@@ -409,6 +410,7 @@ export type Database = {
         }
         Insert: {
           background_url?: string | null
+          content_background_url?: string | null
           created_at?: string
           display_order?: number | null
           id?: string
@@ -416,6 +418,7 @@ export type Database = {
         }
         Update: {
           background_url?: string | null
+          content_background_url?: string | null
           created_at?: string
           display_order?: number | null
           id?: string
