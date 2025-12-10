@@ -92,34 +92,58 @@ Deno.serve(async (req) => {
     // Check if we're at or past the 72-hour mark (period ended) OR force transition is requested
     const periodEnded = hoursElapsed >= 72 || forceTransition;
     
-    // Get all admin user IDs to exclude them
+    // Get all admin user IDs to exclude them from normal processing but still process their transitions
     const { data: adminRoles } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role', 'admin');
     const adminUserIds = new Set((adminRoles || []).map((r: any) => r.user_id));
 
-    // Get all users and bots
+    // Get all users with their profiles (to get current daily XP)
     const { data: allUsers } = await supabase
       .from('user_leagues')
       .select('user_id, current_league, period_xp, period_start_date');
+    
+    // Get profiles for daily XP
+    const { data: allProfiles } = await supabase
+      .from('profiles')
+      .select('user_id, tetris_xp, kart_xp, eslestirme_xp, kitap_xp');
+    
+    // Create a map of user_id to current daily XP
+    const userDailyXpMap = new Map<string, number>();
+    for (const profile of (allProfiles || [])) {
+      const dailyXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
+                      (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
+      userDailyXpMap.set(profile.user_id, dailyXp);
+    }
     
     const { data: allBots } = await supabase
       .from('leaderboard_bots')
       .select('*');
 
-    // Filter out admin users
-    const nonAdminUsers = (allUsers || []).filter((u: any) => !adminUserIds.has(u.user_id));
+    // Include all users (including admins) for transitions - admins should also participate
+    const allUsersForProcessing = allUsers || [];
 
     // Process each league
     for (const league of LEAGUES) {
       console.log(`Processing league: ${league.id}`);
       
       // Get users in this league
-      const usersInLeague = nonAdminUsers.filter((u: any) => u.current_league === league.id);
+      const usersInLeague = allUsersForProcessing.filter((u: any) => u.current_league === league.id);
       
       // Get bots in this league
       const botsInLeague = (allBots || []).filter((b: any) => b.current_league === league.id);
+      
+      // Calculate user total XP = period_xp + current daily XP (real-time)
+      const usersWithXp = usersInLeague.map((u: any) => {
+        const dailyXp = userDailyXpMap.get(u.user_id) || 0;
+        const totalXp = (u.period_xp || 0) + dailyXp;
+        return {
+          ...u,
+          xp: totalXp,
+          isBot: false
+        };
+      });
       
       // Calculate bot XP for sorting
       const botsWithXp = botsInLeague.map((bot: any) => ({
@@ -129,10 +153,7 @@ Deno.serve(async (req) => {
       }));
       
       // Combine users and bots
-      const allParticipants = [
-        ...usersInLeague.map((u: any) => ({ ...u, xp: u.period_xp || 0, isBot: false })),
-        ...botsWithXp
-      ];
+      const allParticipants = [...usersWithXp, ...botsWithXp];
       
       // Sort by XP descending
       allParticipants.sort((a: any, b: any) => b.xp - a.xp);
@@ -190,12 +211,26 @@ Deno.serve(async (req) => {
           isBot: true
         }));
         
-        const participants = [
-          ...usersInLeague.map((u: any) => ({ ...u, xp: u.period_xp || 0, isBot: false })),
-          ...updatedBotsWithXp
-        ];
+        // Re-calculate user XP with daily XP included
+        const usersWithFinalXp = usersInLeague.map((u: any) => {
+          const dailyXp = userDailyXpMap.get(u.user_id) || 0;
+          const totalXp = (u.period_xp || 0) + dailyXp;
+          return {
+            ...u,
+            xp: totalXp,
+            isBot: false
+          };
+        });
+        
+        const participants = [...usersWithFinalXp, ...updatedBotsWithXp];
         
         participants.sort((a: any, b: any) => b.xp - a.xp);
+        
+        console.log(`Participants for transition in ${league.id}:`, participants.map((p: any) => ({
+          name: p.isBot ? p.name : 'User',
+          xp: p.xp,
+          isBot: p.isBot
+        })));
         
         // Process each participant based on position
         for (let i = 0; i < participants.length; i++) {
@@ -207,12 +242,20 @@ Deno.serve(async (req) => {
           // Top 4 promote (unless Titan)
           if (position <= 4 && league.id !== 'titan') {
             const nextLeague = LEAGUES.find(l => l.order === league.order + 1);
-            if (nextLeague) newLeague = nextLeague.id;
+            if (nextLeague) {
+              newLeague = nextLeague.id;
+              console.log(`Position ${position} ${participant.isBot ? participant.name : 'User'}: promoting from ${league.id} to ${newLeague}`);
+            }
           }
-          // Bottom 4 demote (unless Bronze)
-          else if (position > participants.length - 4 && league.id !== 'bronze') {
+          // Bottom 4 demote (positions 9-12 out of 12, unless Bronze)
+          else if (position > 8 && league.id !== 'bronze') {
             const prevLeague = LEAGUES.find(l => l.order === league.order - 1);
-            if (prevLeague) newLeague = prevLeague.id;
+            if (prevLeague) {
+              newLeague = prevLeague.id;
+              console.log(`Position ${position} ${participant.isBot ? participant.name : 'User'}: demoting from ${league.id} to ${newLeague}`);
+            }
+          } else {
+            console.log(`Position ${position} ${participant.isBot ? participant.name : 'User'}: staying in ${league.id}`);
           }
           
           if (participant.isBot) {
@@ -235,7 +278,9 @@ Deno.serve(async (req) => {
               .eq('id', participant.id);
           } else {
             // Update user league and reset XP
-            await supabase
+            console.log(`Updating user ${participant.user_id}: new league=${newLeague}, resetting period_xp to 0`);
+            
+            const { error: leagueError } = await supabase
               .from('user_leagues')
               .update({ 
                 current_league: newLeague, 
@@ -244,8 +289,12 @@ Deno.serve(async (req) => {
               })
               .eq('user_id', participant.user_id);
             
+            if (leagueError) {
+              console.error(`Error updating user_leagues for ${participant.user_id}:`, leagueError);
+            }
+            
             // Also reset profile XP
-            await supabase
+            const { error: profileError } = await supabase
               .from('profiles')
               .update({
                 tetris_xp: 0,
@@ -254,6 +303,10 @@ Deno.serve(async (req) => {
                 kitap_xp: 0
               })
               .eq('user_id', participant.user_id);
+            
+            if (profileError) {
+              console.error(`Error resetting profile XP for ${participant.user_id}:`, profileError);
+            }
           }
         }
       }
