@@ -156,6 +156,7 @@ const Profile = () => {
       .eq('id', 'main');
     
     // Reset all users' daily XP (tetris_xp, kart_xp, eslestirme_xp, kitap_xp)
+    // Need to use .gte filter to update all rows (Supabase requires a filter for update)
     await supabase
       .from('profiles')
       .update({
@@ -163,7 +164,8 @@ const Profile = () => {
         kart_xp: 0,
         eslestirme_xp: 0,
         kitap_xp: 0
-      });
+      })
+      .gte('id', '00000000-0000-0000-0000-000000000000');
     
     setDailyPeriodStart(now);
     
