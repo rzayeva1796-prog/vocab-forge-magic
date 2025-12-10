@@ -436,8 +436,19 @@ const Leaderboard = () => {
     const allEntries = [...botEntries, ...userEntries];
     allEntries.sort((a, b) => b.xp - a.xp);
     
-    // Take only top 12 entries - this means users only appear if they beat at least one bot
-    const limitedEntries = allEntries.slice(0, 12);
+    // Find current user entry before limiting
+    const currentUserEntry = allEntries.find(e => e.isCurrentUser);
+    const currentUserRank = currentUserEntry ? allEntries.findIndex(e => e.isCurrentUser) + 1 : -1;
+    
+    // Take top 12 entries
+    let limitedEntries = allEntries.slice(0, 12);
+    
+    // If current user is not in top 12, add them at the bottom with their actual rank
+    if (currentUserEntry && !limitedEntries.some(e => e.isCurrentUser)) {
+      // Remove the last bot to make room for current user
+      limitedEntries = limitedEntries.slice(0, 11);
+      limitedEntries.push({ ...currentUserEntry, rank: currentUserRank } as LeaderboardEntry);
+    }
     
     // Check for position change notification
     const currentPosition = limitedEntries.findIndex(e => e.isCurrentUser) + 1;
