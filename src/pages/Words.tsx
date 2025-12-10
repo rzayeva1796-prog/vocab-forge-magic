@@ -51,12 +51,12 @@ const Words = () => {
 
   // Scroll to last unlocked subsection after data loads (show at top)
   useEffect(() => {
-    if (!loading && subsections.length > 0 && !isAdmin) {
+    if (!loading && subsections.length > 0) {
       setTimeout(() => {
         lastUnlockedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 300);
     }
-  }, [loading, subsections, isAdmin]);
+  }, [loading, subsections]);
 
   const checkIsAdmin = async (userId: string): Promise<boolean> => {
     const { data } = await supabase
@@ -154,17 +154,32 @@ const Words = () => {
         subsectionsBySectionId[sub.section_id].push(sub);
       });
 
-      // Sort by display_order within each section and calculate unlock
-      // Admin users always have all subsections unlocked
-      // For regular users: subsection unlocks when:
+      // Sort subsections by package_name (1.1, 1.2, etc.) for correct ordering
+      // Then calculate unlock status for each subsection
+      // For ALL users (including admin): subsection unlocks when:
       // 1. First subsection: must be activated (viewed words + clicked Aktifleştir)
       // 2. Other subsections: previous subsection must have >= 3 stars AND this subsection must be activated
       Object.keys(subsectionsBySectionId).forEach(sectionId => {
-        const subs = subsectionsBySectionId[sectionId].sort((a, b) => a.display_order - b.display_order);
+        // Sort by package_name numerically (1.1, 1.2, ..., 1.10) instead of display_order
+        const subs = subsectionsBySectionId[sectionId].sort((a, b) => {
+          const aName = a.package_name || '';
+          const bName = b.package_name || '';
+          
+          // Parse package names like "1.1", "1.2", "1.10"
+          const aParts = aName.split('.').map(p => parseInt(p) || 0);
+          const bParts = bName.split('.').map(p => parseInt(p) || 0);
+          
+          // Compare section number first, then subsection number
+          for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+            const aVal = aParts[i] || 0;
+            const bVal = bParts[i] || 0;
+            if (aVal !== bVal) return aVal - bVal;
+          }
+          return 0;
+        });
+        
         subs.forEach((sub, idx) => {
-          if (userIsAdmin) {
-            sub.unlocked = true; // Admin always has access
-          } else if (idx === 0) {
+          if (idx === 0) {
             // First subsection: only needs activation
             sub.unlocked = sub.activated === true;
           } else {
@@ -203,9 +218,8 @@ const Words = () => {
   };
 
   // Check if section is locked (previous section must have 5 stars)
-  // Admin users always have all sections unlocked
+  // All users (including admin) follow the same lock rules
   const isSectionLocked = (sectionIdx: number): boolean => {
-    if (isAdmin) return false; // Admin always has access
     if (sectionIdx === 0) return false;
     const prevSection = sections[sectionIdx - 1];
     return (prevSection?.min_star_rating ?? 0) < 5;
@@ -314,9 +328,21 @@ const Words = () => {
         ) : (
           <div ref={scrollContainerRef} className="flex flex-col gap-6">
             {sections.map((section, sectionIdx) => {
+              // Sort by package_name numerically (1.1, 1.2, ..., 1.10)
               const sectionSubs = subsections
                 .filter(sub => sub.section_id === section.id)
-                .sort((a, b) => a.display_order - b.display_order);
+                .sort((a, b) => {
+                  const aName = a.package_name || '';
+                  const bName = b.package_name || '';
+                  const aParts = aName.split('.').map(p => parseInt(p) || 0);
+                  const bParts = bName.split('.').map(p => parseInt(p) || 0);
+                  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                    const aVal = aParts[i] || 0;
+                    const bVal = bParts[i] || 0;
+                    if (aVal !== bVal) return aVal - bVal;
+                  }
+                  return 0;
+                });
               
               // Find last unlocked subsection across all sections for scroll target
               const lastUnlockedSubInSection = sectionSubs.filter(s => s.unlocked).slice(-1)[0];
