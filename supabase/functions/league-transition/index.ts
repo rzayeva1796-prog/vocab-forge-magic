@@ -76,12 +76,15 @@ Deno.serve(async (req) => {
     // Check if force transition is requested (for admin simulation)
     let forceTransition = false;
     try {
-      const body = await req.json();
-      forceTransition = body?.forceTransition === true;
-      console.log('Force transition requested:', forceTransition);
-    } catch {
-      // No body or invalid JSON, continue with normal check
+      const contentType = req.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const body = await req.json();
+        forceTransition = body?.forceTransition === true;
+      }
+    } catch (e) {
+      console.log('Body parse error (continuing with normal check):', e);
     }
+    console.log('Force transition requested:', forceTransition);
 
     const periodStart = getGlobalPeriodStart();
     const now = new Date();
