@@ -126,18 +126,28 @@ export const SubsectionCard = ({
     toIdx: number, 
     subs: Subsection[]
   ) => {
+    console.log("Moving subsection:", { fromIdx, toIdx, subsId: sub.id, subs: subs.map(s => ({ id: s.id, order: s.display_order })) });
+    
     try {
       // Reorder the array
       const newOrder = [...subs];
       const [movedItem] = newOrder.splice(fromIdx, 1);
       newOrder.splice(toIdx, 0, movedItem);
       
-      // Update all display_order values
-      const updates = newOrder.map((s, idx) => 
-        supabase.from("subsections").update({ display_order: idx }).eq("id", s.id)
-      );
+      console.log("New order:", newOrder.map((s, idx) => ({ id: s.id, newOrder: idx })));
       
-      await Promise.all(updates);
+      // Update all display_order values sequentially to avoid conflicts
+      for (let i = 0; i < newOrder.length; i++) {
+        const { error } = await supabase
+          .from("subsections")
+          .update({ display_order: i })
+          .eq("id", newOrder[i].id);
+        
+        if (error) {
+          console.error("Error updating subsection order:", error);
+          throw error;
+        }
+      }
       
       toast.success("Sıralama güncellendi");
       onUpdate();
