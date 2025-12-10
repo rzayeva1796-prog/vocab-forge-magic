@@ -156,8 +156,8 @@ const Profile = () => {
       .eq('id', 'main');
     
     // Reset all users' daily XP (tetris_xp, kart_xp, eslestirme_xp, kitap_xp)
-    // Need to use .gte filter to update all rows (Supabase requires a filter for update)
-    await supabase
+    // Use .not('id', 'is', null) to update all rows (Supabase requires a filter for update)
+    const { error: updateError } = await supabase
       .from('profiles')
       .update({
         tetris_xp: 0,
@@ -165,7 +165,13 @@ const Profile = () => {
         eslestirme_xp: 0,
         kitap_xp: 0
       })
-      .gte('id', '00000000-0000-0000-0000-000000000000');
+      .not('id', 'is', null);
+    
+    if (updateError) {
+      console.error('Error resetting profiles XP:', updateError);
+    } else {
+      console.log('Successfully reset all profiles XP to 0');
+    }
     
     setDailyPeriodStart(now);
     
