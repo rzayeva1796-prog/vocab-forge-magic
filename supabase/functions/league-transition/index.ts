@@ -76,13 +76,17 @@ Deno.serve(async (req) => {
     // Check if force transition is requested (for admin simulation)
     let forceTransition = false;
     try {
-      const contentType = req.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        const body = await req.json();
+      // Clone request to read body without consuming it
+      const clonedReq = req.clone();
+      const bodyText = await clonedReq.text();
+      console.log('Request body:', bodyText);
+      
+      if (bodyText && bodyText.trim().length > 0) {
+        const body = JSON.parse(bodyText);
         forceTransition = body?.forceTransition === true;
       }
     } catch (e) {
-      console.log('Body parse error (continuing with normal check):', e);
+      console.log('Body parse info:', String(e));
     }
     console.log('Force transition requested:', forceTransition);
 
