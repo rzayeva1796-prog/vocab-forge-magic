@@ -146,37 +146,64 @@ export type Database = {
         }
         Relationships: []
       }
+      global_settings: {
+        Row: {
+          created_at: string
+          daily_period_start: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_period_start?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_period_start?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leaderboard_bots: {
         Row: {
           avatar_url: string | null
+          bot_number: number | null
           created_at: string
           current_league: string
           daily_xp_rate: number
           id: string
           is_male: boolean
           name: string
+          original_league: string | null
           period_xp: number
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          bot_number?: number | null
           created_at?: string
           current_league?: string
           daily_xp_rate?: number
           id?: string
           is_male?: boolean
           name: string
+          original_league?: string | null
           period_xp?: number
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          bot_number?: number | null
           created_at?: string
           current_league?: string
           daily_xp_rate?: number
           id?: string
           is_male?: boolean
           name?: string
+          original_league?: string | null
           period_xp?: number
           updated_at?: string
         }
@@ -462,6 +489,7 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          daily_period_start: string | null
           display_name: string | null
           eslestirme_xp: number
           id: string
@@ -477,6 +505,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          daily_period_start?: string | null
           display_name?: string | null
           eslestirme_xp?: number
           id?: string
@@ -492,6 +521,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          daily_period_start?: string | null
           display_name?: string | null
           eslestirme_xp?: number
           id?: string

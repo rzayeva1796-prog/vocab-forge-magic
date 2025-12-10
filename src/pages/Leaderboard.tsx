@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Trophy, TrendingUp, TrendingDown, Minus, Crown, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send, Clock, Plus, MinusCircle } from "lucide-react";
+import { Trophy, TrendingUp, TrendingDown, Minus, Crown, Bell, Users, Flame, Gamepad2, BookOpen, Layers, Zap, Send, Clock, Plus, MinusCircle, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
@@ -160,7 +160,8 @@ const Leaderboard = () => {
     loadBots();
   }, []);
 
-  // Sync period_xp with total XP from profile
+  // Sync period_xp - add current daily XP to cumulative leaderboard XP
+  // Note: period_xp is cumulative over 72h, while profile XP resets every 24h
   const syncXpFromProfile = async () => {
     if (!user) return;
     
@@ -170,16 +171,20 @@ const Leaderboard = () => {
       .eq('user_id', user.id)
       .maybeSingle();
     
+    const { data: leagueData } = await supabase
+      .from('user_leagues')
+      .select('period_xp')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
     if (profile) {
-      const totalXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
-                      (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
+      const currentDailyXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
+                             (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
       
-      await supabase
-        .from('user_leagues')
-        .update({ period_xp: totalXp })
-        .eq('user_id', user.id);
-      
-      setUserPeriodXp(totalXp);
+      // The period_xp in user_leagues should already contain cumulative XP from previous days
+      // We only need to show it in the UI
+      const totalPeriodXp = leagueData?.period_xp || 0;
+      setUserPeriodXp(totalPeriodXp + currentDailyXp);
     }
   };
 
@@ -423,6 +428,36 @@ const Leaderboard = () => {
     return limitedEntries;
   }, [userProfile, userPeriodXp, allLeagueUsers, bots, user?.id, currentUserIsAdmin, selectedLeague, userLeague, simulatedHoursOffset, showPositionLostNotification, getNotificationPreference, isWithinNotificationHours]);
 
+  // Reset 72-hour timer for admin
+  const handleReset72Hours = async () => {
+    if (!currentUserIsAdmin) return;
+    
+    try {
+      // Reset all user leagues period_start_date to now
+      const now = new Date().toISOString();
+      
+      await supabase
+        .from('user_leagues')
+        .update({ period_start_date: now });
+      
+      toast({
+        title: "72 Saat Sıfırlandı",
+        description: "Tüm kullanıcılar için 72 saatlik süre yeniden başladı.",
+      });
+      
+      // Reload data
+      await loadLeaderboardData();
+      setSimulatedHoursOffset(0);
+    } catch (error) {
+      console.error('Error resetting 72h:', error);
+      toast({
+        title: "Hata",
+        description: "Sıfırlama başarısız",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Simulate league changes at period end by calling edge function
   const simulateLeagueChanges = async () => {
     if (!currentUserIsAdmin) return;
@@ -644,10 +679,22 @@ const Leaderboard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex justify-between items-center">
+            <div className="flex justify-between items-center">
             <div>
               <p className="text-sm opacity-80">Kalan Süre</p>
-              <p className="text-xl font-bold">{formatTimeRemaining()}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xl font-bold">{formatTimeRemaining()}</p>
+                {currentUserIsAdmin && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 px-2 text-xs text-white hover:bg-white/20"
+                    onClick={handleReset72Hours}
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
               {simulatedHoursOffset !== 0 && (
                 <p className="text-xs opacity-70">(Simüle: {simulatedHoursOffset > 0 ? '+' : ''}{simulatedHoursOffset}h)</p>
               )}
