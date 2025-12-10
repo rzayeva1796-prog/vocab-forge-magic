@@ -229,6 +229,38 @@ export type Database = {
           },
         ]
       }
+      listen_history: {
+        Row: {
+          completed: boolean | null
+          id: string
+          listened_at: string
+          track_id: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean | null
+          id?: string
+          listened_at?: string
+          track_id: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean | null
+          id?: string
+          listened_at?: string
+          track_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listen_history_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "music_tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movies: {
         Row: {
           category: string | null
@@ -255,6 +287,113 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      music: {
+        Row: {
+          category: string | null
+          cover_url: string | null
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cover_url?: string | null
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      music_albums: {
+        Row: {
+          created_at: string
+          display_order: number | null
+          id: string
+          music_id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          music_id: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          music_id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "music_albums_music_id_fkey"
+            columns: ["music_id"]
+            isOneToOne: false
+            referencedRelation: "music"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      music_tracks: {
+        Row: {
+          album_id: string
+          audio_url: string | null
+          created_at: string
+          display_order: number | null
+          id: string
+          name: string
+          package_id: string | null
+          track_number: number
+        }
+        Insert: {
+          album_id: string
+          audio_url?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name: string
+          package_id?: string | null
+          track_number: number
+        }
+        Update: {
+          album_id?: string
+          audio_url?: string | null
+          created_at?: string
+          display_order?: number | null
+          id?: string
+          name?: string
+          package_id?: string | null
+          track_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "music_tracks_album_id_fkey"
+            columns: ["album_id"]
+            isOneToOne: false
+            referencedRelation: "music_albums"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "music_tracks_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "word_packages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notification_settings: {
         Row: {

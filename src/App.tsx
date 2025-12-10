@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Leaderboard from "./pages/Leaderboard";
 import Fun from "./pages/Fun";
 import Movies from "./pages/Movies";
+import Music from "./pages/Music";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/fun" element={<Fun />} />
             <Route path="/movies" element={<Movies />} />
+            <Route path="/music" element={<Music />} />
             <Route path="/admin" element={<Admin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
