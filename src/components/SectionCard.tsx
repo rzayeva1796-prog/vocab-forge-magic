@@ -19,7 +19,6 @@ interface SectionCardProps {
   isAdmin: boolean;
   isExpanded: boolean;
   isLocked?: boolean;
-  onToggle: () => void;
   onUpdateName: (id: string, name: string) => Promise<void>;
   onUpdateBackground?: (id: string, url: string | null, type: 'header' | 'content') => void;
   children: React.ReactNode;
@@ -30,7 +29,6 @@ export const SectionCard = ({
   isAdmin,
   isExpanded,
   isLocked = false,
-  onToggle,
   onUpdateName,
   onUpdateBackground,
   children,
@@ -156,16 +154,14 @@ export const SectionCard = ({
         {/* Section Header */}
         <div
           className={cn(
-            "relative flex items-center justify-between p-4 cursor-pointer transition-colors",
-            "hover:bg-muted/50",
-            isLocked && !isAdmin && "cursor-not-allowed"
+            "relative flex items-center justify-between p-4 transition-colors",
+            isLocked && !isAdmin && "opacity-60"
           )}
           style={section.background_url ? {
             backgroundImage: `linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url(${section.background_url})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
           } : undefined}
-          onClick={() => !isEditing && !isLocked && onToggle()}
         >
           {isEditing ? (
             <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()}>
@@ -226,16 +222,9 @@ export const SectionCard = ({
             </div>
           )}
 
-          <div className="flex items-center">
-            {isExpanded ? (
-              <ChevronUp className={cn("w-5 h-5", section.background_url ? "text-white" : "text-muted-foreground")} />
-            ) : (
-              <ChevronDown className={cn("w-5 h-5", section.background_url ? "text-white" : "text-muted-foreground")} />
-            )}
-          </div>
         </div>
 
-        {/* Section Content - Subsections */}
+        {/* Section Content - Subsections - Always visible */}
         {isExpanded && (
           <div 
             className="p-4 pt-0 border-t border-border relative overflow-hidden"

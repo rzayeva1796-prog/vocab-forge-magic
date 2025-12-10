@@ -42,7 +42,6 @@ const Words = () => {
   const [packages, setPackages] = useState<WordPackage[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const lastUnlockedRef = useRef<HTMLDivElement>(null);
 
@@ -50,11 +49,11 @@ const Words = () => {
     loadData();
   }, [user]);
 
-  // Scroll to last unlocked subsection after data loads
+  // Scroll to last unlocked subsection after data loads (show at top)
   useEffect(() => {
     if (!loading && subsections.length > 0 && !isAdmin) {
       setTimeout(() => {
-        lastUnlockedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        lastUnlockedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 300);
     }
   }, [loading, subsections, isAdmin]);
@@ -102,11 +101,6 @@ const Words = () => {
 
       // Create set of activated subsection IDs
       const activatedSubsectionIds = new Set(activations.map((a: any) => a.subsection_id));
-
-      // Auto-expand first section
-      if (sectionsData && sectionsData.length > 0) {
-        setExpandedSections(new Set([sectionsData[0].id]));
-      }
 
       setPackages(packagesData);
 
@@ -217,17 +211,7 @@ const Words = () => {
     return (prevSection?.min_star_rating ?? 0) < 5;
   };
 
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
-      return next;
-    });
-  };
+  // No toggle needed - sections are always expanded
 
   const handleUpdateSectionName = async (sectionId: string, name: string) => {
     try {
@@ -255,7 +239,6 @@ const Words = () => {
 
       if (error) throw error;
       setSections(prev => [...prev, { ...data, min_star_rating: 0 }]);
-      setExpandedSections(prev => new Set([...prev, data.id]));
       toast.success("Yeni bölüm eklendi");
     } catch (error) {
       console.error("Error adding section:", error);
@@ -329,69 +312,74 @@ const Words = () => {
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-4">
-            {sections.map((section, sectionIdx) => (
-              <SectionCard
-                key={section.id}
-                section={section}
-                isAdmin={isAdmin}
-                isExpanded={expandedSections.has(section.id)}
-                isLocked={isSectionLocked(sectionIdx)}
-                onToggle={() => toggleSection(section.id)}
-                onUpdateName={handleUpdateSectionName}
-                onUpdateBackground={(id, url, type) => {
-                  if (type === 'header') {
-                    setSections(prev => prev.map(s => s.id === id ? { ...s, background_url: url } : s));
-                  } else {
-                    setSections(prev => prev.map(s => s.id === id ? { ...s, content_background_url: url } : s));
-                  }
-                }}
-              >
-                <div className="flex flex-col items-center gap-20 py-4">
-                  {(() => {
-                    const sectionSubs = subsections
-                      .filter(sub => sub.section_id === section.id)
-                      .sort((a, b) => a.display_order - b.display_order);
-                    
-                    // Find last unlocked subsection index
-                    let lastUnlockedIdx = -1;
-                    sectionSubs.forEach((sub, idx) => {
-                      if (sub.unlocked) lastUnlockedIdx = idx;
-                    });
+          <div ref={scrollContainerRef} className="flex flex-col gap-6">
+            {sections.map((section, sectionIdx) => {
+              const sectionSubs = subsections
+                .filter(sub => sub.section_id === section.id)
+                .sort((a, b) => a.display_order - b.display_order);
+              
+              // Find last unlocked subsection across all sections for scroll target
+              const lastUnlockedSubInSection = sectionSubs.filter(s => s.unlocked).slice(-1)[0];
 
-                    return sectionSubs.map((sub, index) => (
-                      <div
-                        key={sub.id}
-                        ref={index === lastUnlockedIdx ? lastUnlockedRef : undefined}
+              return (
+                <SectionCard
+                  key={section.id}
+                  section={section}
+                  isAdmin={isAdmin}
+                  isExpanded={true}
+                  isLocked={isSectionLocked(sectionIdx)}
+                  onUpdateName={handleUpdateSectionName}
+                  onUpdateBackground={(id, url, type) => {
+                    if (type === 'header') {
+                      setSections(prev => prev.map(s => s.id === id ? { ...s, background_url: url } : s));
+                    } else {
+                      setSections(prev => prev.map(s => s.id === id ? { ...s, content_background_url: url } : s));
+                    }
+                  }}
+                >
+                  <div className="flex flex-col items-center gap-20 py-4">
+                    {sectionSubs.map((sub, index) => {
+                      // Check if this is THE last unlocked subsection globally
+                      const allUnlockedSubs = subsections.filter(s => s.unlocked);
+                      const globalLastUnlocked = allUnlockedSubs.length > 0 
+                        ? allUnlockedSubs[allUnlockedSubs.length - 1] 
+                        : null;
+                      const isGlobalLastUnlocked = globalLastUnlocked?.id === sub.id;
+
+                      return (
+                        <div
+                          key={sub.id}
+                          ref={isGlobalLastUnlocked ? lastUnlockedRef : undefined}
+                        >
+                          <SubsectionCard
+                            subsection={sub}
+                            index={index}
+                            isAdmin={isAdmin}
+                            availablePackages={packages}
+                            onUpdate={loadData}
+                            onDelete={handleDeleteSubsection}
+                            onReorder={handleReorderSubsection}
+                            allSubsections={sectionSubs}
+                          />
+                        </div>
+                      );
+                    })}
+                    {/* Add subsection button for admin */}
+                    {isAdmin && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddSubsection(section.id)}
+                        className="mt-2"
                       >
-                        <SubsectionCard
-                          subsection={sub}
-                          index={index}
-                          isAdmin={isAdmin}
-                          availablePackages={packages}
-                          onUpdate={loadData}
-                          onDelete={handleDeleteSubsection}
-                          onReorder={handleReorderSubsection}
-                          allSubsections={sectionSubs}
-                        />
-                      </div>
-                    ));
-                  })()}
-                  {/* Add subsection button for admin */}
-                  {isAdmin && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddSubsection(section.id)}
-                      className="mt-2"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Alt Bölüm Ekle
-                    </Button>
-                  )}
-                </div>
-              </SectionCard>
-            ))}
+                        <Plus className="w-4 h-4 mr-2" />
+                        Alt Bölüm Ekle
+                      </Button>
+                    )}
+                  </div>
+                </SectionCard>
+              );
+            })}
 
             {/* Add section button for admin */}
             {isAdmin && (
