@@ -117,8 +117,37 @@ const Profile = () => {
   };
 
   // Auto-reset 24h countdown when it expires
+  // IMPORTANT: Add daily XP to period_xp BEFORE resetting daily XP
   const handleAuto24HourReset = async () => {
     const now = new Date();
+    
+    // First, get all profiles with their daily XP and add to period_xp
+    const { data: allProfiles } = await supabase
+      .from('profiles')
+      .select('user_id, tetris_xp, kart_xp, eslestirme_xp, kitap_xp');
+    
+    if (allProfiles) {
+      // For each user, add their daily XP to period_xp
+      for (const p of allProfiles) {
+        const dailyTotal = (p.tetris_xp || 0) + (p.kart_xp || 0) + (p.eslestirme_xp || 0) + (p.kitap_xp || 0);
+        if (dailyTotal > 0) {
+          // Get current period_xp
+          const { data: leagueData } = await supabase
+            .from('user_leagues')
+            .select('period_xp')
+            .eq('user_id', p.user_id)
+            .maybeSingle();
+          
+          if (leagueData) {
+            // Add daily XP to period_xp
+            await supabase
+              .from('user_leagues')
+              .update({ period_xp: (leagueData.period_xp || 0) + dailyTotal })
+              .eq('user_id', p.user_id);
+          }
+        }
+      }
+    }
     
     // Reset global settings
     await supabase
@@ -137,6 +166,9 @@ const Profile = () => {
       });
     
     setDailyPeriodStart(now);
+    
+    // Reload profile to show updated values
+    loadProfile();
   };
 
   // Update 24h countdown every second
@@ -156,32 +188,13 @@ const Profile = () => {
     return () => clearInterval(interval);
   }, [dailyPeriodStart]);
 
-  // Admin reset 24h countdown
+  // Admin reset 24h countdown - also adds daily XP to period_xp first
   const handleReset24Hours = async () => {
     if (!isAdmin) return;
     
     try {
-      const now = new Date();
-      
-      // Reset global settings
-      await supabase
-        .from('global_settings')
-        .update({ daily_period_start: now.toISOString() })
-        .eq('id', 'main');
-      
-      // Reset all users' daily XP
-      await supabase
-        .from('profiles')
-        .update({
-          tetris_xp: 0,
-          kart_xp: 0,
-          eslestirme_xp: 0,
-          kitap_xp: 0
-        });
-      
-      setDailyPeriodStart(now);
-      
-      toast.success('24 saat sıfırlandı ve tüm günlük puanlar sıfırlandı');
+      await handleAuto24HourReset();
+      toast.success('24 saat sıfırlandı ve günlük puanlar leaderboard\'a eklendi');
     } catch (error) {
       console.error('Error resetting 24h:', error);
       toast.error('Sıfırlama başarısız');

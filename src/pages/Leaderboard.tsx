@@ -182,8 +182,9 @@ const Leaderboard = () => {
     loadBots();
   }, []);
 
-  // Sync period_xp - add current daily XP to cumulative leaderboard XP
-  // Note: period_xp is cumulative over 72h, while profile XP resets every 24h
+  // Calculate total XP for leaderboard display
+  // period_xp contains cumulative XP from previous days (saved when 24h resets)
+  // current daily XP is added on top for real-time display
   const syncXpFromProfile = async () => {
     if (!user) return;
     
@@ -203,10 +204,11 @@ const Leaderboard = () => {
       const currentDailyXp = (profile.tetris_xp || 0) + (profile.kart_xp || 0) + 
                              (profile.eslestirme_xp || 0) + (profile.kitap_xp || 0);
       
-      // The period_xp in user_leagues should already contain cumulative XP from previous days
-      // We only need to show it in the UI
-      const totalPeriodXp = leagueData?.period_xp || 0;
-      setUserPeriodXp(totalPeriodXp + currentDailyXp);
+      // period_xp = XP from previous days within this 72h period
+      // currentDailyXp = today's XP (not yet saved to period_xp)
+      // Total = period_xp + currentDailyXp (real-time display)
+      const savedPeriodXp = leagueData?.period_xp || 0;
+      setUserPeriodXp(savedPeriodXp + currentDailyXp);
     }
   };
 
@@ -404,24 +406,31 @@ const Leaderboard = () => {
     }));
 
     // Get users for the display league (non-admin only)
+    // XP = period_xp (saved from previous days) + current daily XP (real-time)
     const usersInLeague = allLeagueUsers[displayLeague.id] || [];
     const userEntries: LeaderboardEntry[] = usersInLeague
       .filter(u => !(u.user_id === user?.id && currentUserIsAdmin))
-      .map(u => ({
-        id: u.user_id,
-        name: u.display_name || (u.isCurrentUser ? 'Sen' : 'Kullanıcı'),
-        avatar_url: u.avatar_url,
-        xp: u.period_xp || 0,
-        isBot: false,
-        isCurrentUser: u.isCurrentUser && !currentUserIsAdmin,
-        isFriend: u.isFriend,
-        login_streak: u.login_streak,
-        tetris_xp: u.tetris_xp,
-        kart_xp: u.kart_xp,
-        eslestirme_xp: u.eslestirme_xp,
-        kitap_xp: u.kitap_xp,
-        friendUserId: u.isFriend ? u.user_id : undefined
-      }));
+      .map(u => {
+        // Calculate total XP: saved period_xp + current day's XP
+        const currentDailyXp = (u.tetris_xp || 0) + (u.kart_xp || 0) + (u.eslestirme_xp || 0) + (u.kitap_xp || 0);
+        const totalXp = (u.period_xp || 0) + currentDailyXp;
+        
+        return {
+          id: u.user_id,
+          name: u.display_name || (u.isCurrentUser ? 'Sen' : 'Kullanıcı'),
+          avatar_url: u.avatar_url,
+          xp: totalXp,
+          isBot: false,
+          isCurrentUser: u.isCurrentUser && !currentUserIsAdmin,
+          isFriend: u.isFriend,
+          login_streak: u.login_streak,
+          tetris_xp: u.tetris_xp,
+          kart_xp: u.kart_xp,
+          eslestirme_xp: u.eslestirme_xp,
+          kitap_xp: u.kitap_xp,
+          friendUserId: u.isFriend ? u.user_id : undefined
+        };
+      });
     
     // Combine all entries and sort by XP descending
     const allEntries = [...botEntries, ...userEntries];
