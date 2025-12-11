@@ -119,97 +119,41 @@ const Profile = () => {
   // Auto-reset 24h countdown when it expires
   // IMPORTANT: Add daily XP to period_xp BEFORE resetting daily XP
   const handleAuto24HourReset = async () => {
-    const now = new Date();
+    console.log('[24h Reset] Calling edge function...');
     
-    console.log('[24h Reset] Starting reset process...');
-    
-    // First, get all profiles with their daily XP
-    const { data: allProfiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('user_id, tetris_xp, kart_xp, eslestirme_xp, kitap_xp');
-    
-    console.log('[24h Reset] Fetched profiles:', allProfiles?.length, 'Error:', profilesError);
-    
-    if (allProfiles && allProfiles.length > 0) {
-      // For each user, add their daily XP to period_xp
-      for (const p of allProfiles) {
-        const dailyTotal = (p.tetris_xp || 0) + (p.kart_xp || 0) + (p.eslestirme_xp || 0) + (p.kitap_xp || 0);
-        console.log(`[24h Reset] User ${p.user_id} daily total: ${dailyTotal}`);
-        
-        if (dailyTotal > 0) {
-          // Get current period_xp and update it
-          const { data: leagueData, error: leagueError } = await supabase
-            .from('user_leagues')
-            .select('period_xp')
-            .eq('user_id', p.user_id)
-            .maybeSingle();
-          
-          console.log(`[24h Reset] User league data:`, leagueData, 'Error:', leagueError);
-          
-          if (leagueData) {
-            const newPeriodXp = (leagueData.period_xp || 0) + dailyTotal;
-            console.log(`[24h Reset] Updating period_xp from ${leagueData.period_xp} to ${newPeriodXp}`);
-            
-            const { error: updateError } = await supabase
-              .from('user_leagues')
-              .update({ period_xp: newPeriodXp })
-              .eq('user_id', p.user_id);
-            
-            if (updateError) {
-              console.error(`[24h Reset] Update error:`, updateError);
-            } else {
-              console.log(`[24h Reset] Successfully updated period_xp`);
-            }
-          } else if (!leagueData && !leagueError) {
-            // User doesn't have a league entry yet, create one
-            console.log(`[24h Reset] Creating league entry for user ${p.user_id}`);
-            await supabase
-              .from('user_leagues')
-              .insert({ user_id: p.user_id, period_xp: dailyTotal, current_league: 'bronze' });
-          }
-        }
+    try {
+      const { data, error } = await supabase.functions.invoke('reset-daily-xp');
+      
+      if (error) {
+        console.error('[24h Reset] Edge function error:', error);
+        throw error;
       }
+      
+      console.log('[24h Reset] Edge function response:', data);
+      
+      // Update local state
+      const now = new Date();
+      setDailyPeriodStart(now);
+      
+      // Immediately update local profile state to reflect reset
+      if (profile) {
+        setProfile({
+          ...profile,
+          tetris_xp: 0,
+          kart_xp: 0,
+          eslestirme_xp: 0,
+          kitap_xp: 0
+        });
+      }
+      
+      // Reload profile to ensure sync
+      loadProfile();
+      
+      return data;
+    } catch (error) {
+      console.error('[24h Reset] Error:', error);
+      throw error;
     }
-    
-    // Reset global settings
-    await supabase
-      .from('global_settings')
-      .update({ daily_period_start: now.toISOString() })
-      .eq('id', 'main');
-    
-    // Reset all users' daily XP (tetris_xp, kart_xp, eslestirme_xp, kitap_xp)
-    // Use .not('id', 'is', null) to update all rows (Supabase requires a filter for update)
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({
-        tetris_xp: 0,
-        kart_xp: 0,
-        eslestirme_xp: 0,
-        kitap_xp: 0
-      })
-      .not('id', 'is', null);
-    
-    if (updateError) {
-      console.error('Error resetting profiles XP:', updateError);
-    } else {
-      console.log('Successfully reset all profiles XP to 0');
-    }
-    
-    setDailyPeriodStart(now);
-    
-    // Immediately update local profile state to reflect reset
-    if (profile) {
-      setProfile({
-        ...profile,
-        tetris_xp: 0,
-        kart_xp: 0,
-        eslestirme_xp: 0,
-        kitap_xp: 0
-      });
-    }
-    
-    // Reload profile to ensure sync
-    loadProfile();
   };
 
   // Update 24h countdown every second
