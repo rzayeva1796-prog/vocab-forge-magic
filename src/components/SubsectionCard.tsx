@@ -173,21 +173,24 @@ export const SubsectionCard = ({
   };
 
   const handleClick = () => {
+    // Use saved sub-package from database, not the current selection
+    const subPkgId = savedSubPackage || subsection.selected_sub_package_id;
+    
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        // Include sub_package_id if selected
-        const url = selectedSubPackage 
-          ? `/game?package_id=${subsection.package_id}&sub_package_id=${selectedSubPackage}`
+        // Include sub_package_id if saved
+        const url = subPkgId 
+          ? `/game?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
           : `/game?package_id=${subsection.package_id}`;
         navigate(url);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        // Include sub_package_id if selected
-        const url = selectedSubPackage 
-          ? `/game?package_id=${subsection.package_id}&sub_package_id=${selectedSubPackage}`
+        // Include sub_package_id if saved
+        const url = subPkgId 
+          ? `/game?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
           : `/game?package_id=${subsection.package_id}`;
         navigate(url);
       }
