@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { WordsPreviewModal } from "./WordsPreviewModal";
+import { SubPackageSelector } from "./SubPackageSelector";
 
 interface Subsection {
   id: string;
@@ -62,6 +63,7 @@ export const SubsectionCard = ({
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedSubPackage, setSelectedSubPackage] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -173,11 +175,19 @@ export const SubsectionCard = ({
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        navigate(`/game?package_id=${subsection.package_id}`);
+        // Include sub_package_id if selected
+        const url = selectedSubPackage 
+          ? `/game?package_id=${subsection.package_id}&sub_package_id=${selectedSubPackage}`
+          : `/game?package_id=${subsection.package_id}`;
+        navigate(url);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        navigate(`/game?package_id=${subsection.package_id}`);
+        // Include sub_package_id if selected
+        const url = selectedSubPackage 
+          ? `/game?package_id=${subsection.package_id}&sub_package_id=${selectedSubPackage}`
+          : `/game?package_id=${subsection.package_id}`;
+        navigate(url);
       }
     }
   };
@@ -495,6 +505,16 @@ export const SubsectionCard = ({
             <span className="text-xs text-muted-foreground">
               {subsection.word_count} kelime
             </span>
+          )}
+
+          {/* Sub-package selector */}
+          {subsection.package_id && (subsection.unlocked || isAdmin) && (
+            <SubPackageSelector
+              packageId={subsection.package_id}
+              packageName={subsection.package_name || ""}
+              selectedSubPackage={selectedSubPackage}
+              onSelect={setSelectedSubPackage}
+            />
           )}
 
           {subsection.package_id && (
