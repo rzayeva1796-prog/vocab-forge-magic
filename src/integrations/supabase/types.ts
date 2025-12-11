@@ -216,6 +216,7 @@ export type Database = {
           english: string
           frequency_group: string
           id: string
+          image_url: string | null
           is_flipped: boolean | null
           package_id: string | null
           package_name: string | null
@@ -228,6 +229,7 @@ export type Database = {
           english: string
           frequency_group: string
           id?: string
+          image_url?: string | null
           is_flipped?: boolean | null
           package_id?: string | null
           package_name?: string | null
@@ -240,6 +242,7 @@ export type Database = {
           english?: string
           frequency_group?: string
           id?: string
+          image_url?: string | null
           is_flipped?: boolean | null
           package_id?: string | null
           package_name?: string | null
