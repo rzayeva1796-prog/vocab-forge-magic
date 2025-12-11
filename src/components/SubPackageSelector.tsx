@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { SubPackage, generateSubPackages } from "@/lib/subPackages";
 import { Loader2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 interface SubPackageSelectorProps {
   packageId: string;
@@ -50,7 +51,7 @@ export const SubPackageSelector = ({
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
         <Loader2 className="w-3 h-3 animate-spin" />
         Yükleniyor...
       </div>
@@ -62,21 +63,35 @@ export const SubPackageSelector = ({
   }
 
   return (
-    <Select
-      value={selectedSubPackage || "all"}
-      onValueChange={(value) => onSelect(value === "all" ? null : value)}
-    >
-      <SelectTrigger className="h-7 text-xs w-28">
-        <SelectValue placeholder="Alt paket" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Tümü</SelectItem>
-        {subPackages.map((subPkg) => (
-          <SelectItem key={subPkg.id} value={subPkg.id}>
-            {subPkg.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="flex flex-col gap-1 mt-1">
+      {/* Package Display */}
+      <div className="flex flex-col gap-0.5">
+        <Label className="text-[10px] text-muted-foreground">Paket</Label>
+        <div className="h-7 px-2 text-xs bg-muted/50 rounded-md flex items-center border border-border/50 w-28">
+          {packageName}
+        </div>
+      </div>
+      
+      {/* Sub-package Selector */}
+      <div className="flex flex-col gap-0.5">
+        <Label className="text-[10px] text-muted-foreground">Alt Paket</Label>
+        <Select
+          value={selectedSubPackage || "all"}
+          onValueChange={(value) => onSelect(value === "all" ? null : value)}
+        >
+          <SelectTrigger className="h-7 text-xs w-28">
+            <SelectValue placeholder="Alt paket" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tümü</SelectItem>
+            {subPackages.map((subPkg) => (
+              <SelectItem key={subPkg.id} value={subPkg.id}>
+                {subPkg.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 };
