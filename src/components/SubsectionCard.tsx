@@ -512,8 +512,8 @@ export const SubsectionCard = ({
             </span>
           )}
 
-          {/* Sub-package selector */}
-          {subsection.package_id && (subsection.unlocked || isAdmin) && (
+          {/* Sub-package selector - only for admin users */}
+          {isAdmin && subsection.package_id && (
             <SubPackageSelector
               packageId={subsection.package_id}
               packageName={subsection.package_name || ""}

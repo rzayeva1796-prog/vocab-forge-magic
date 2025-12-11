@@ -45,26 +45,37 @@ const Game = () => {
   const loadGameData = async () => {
     if (!user) return;
 
+    console.log("Game loadGameData - packageId:", packageId, "subPackageId:", subPackageId);
+
     // Build query based on package/sub-package selection
     let query = supabase
       .from("learned_words")
-      .select("id, english, turkish")
+      .select("id, english, turkish, sub_package_id")
       .order("added_at", { ascending: true });
 
     if (subPackageId) {
       // Filter by specific sub-package
+      console.log("Filtering by sub_package_id:", subPackageId);
       query = query.eq("sub_package_id", subPackageId);
     } else if (packageId) {
       // Filter by package (all words in package)
+      console.log("Filtering by package_id only:", packageId);
       query = query.eq("package_id", packageId);
     }
 
-    const { data: words } = await query;
+    const { data: words, error } = await query;
+    
+    console.log("Game loaded words:", words?.length, "error:", error);
+    if (words && words.length > 0) {
+      console.log("First word sub_package_id:", words[0].sub_package_id);
+    }
 
     if (!words || words.length === 0) {
       toast({
-        title: "No Words",
-        description: "Please learn some words first in the dictionary!",
+        title: "Kelime Yok",
+        description: subPackageId 
+          ? "Bu alt pakette kelime bulunamadı! Alt paket seçimini kontrol edin."
+          : "Önce sözlükte kelime öğrenin!",
         variant: "destructive",
       });
       return;
