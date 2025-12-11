@@ -180,18 +180,18 @@ export const SubsectionCard = ({
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        // Include sub_package_id if saved
+        // Navigate directly to internal pair game with sub_package_id
         const url = subPkgId 
-          ? `/game?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
-          : `/game?package_id=${subsection.package_id}`;
+          ? `/game/pair?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
+          : `/game/pair?package_id=${subsection.package_id}`;
         navigate(url);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        // Include sub_package_id if saved
+        // Navigate directly to internal pair game with sub_package_id
         const url = subPkgId 
-          ? `/game?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
-          : `/game?package_id=${subsection.package_id}`;
+          ? `/game/pair?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
+          : `/game/pair?package_id=${subsection.package_id}`;
         navigate(url);
       }
     }
