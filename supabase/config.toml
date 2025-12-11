@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.league-transition]
 verify_jwt = false
+
+[functions.reset-daily-xp]
+verify_jwt = false
