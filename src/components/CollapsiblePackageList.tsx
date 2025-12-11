@@ -132,7 +132,7 @@ export const CollapsiblePackageList = ({
               {mainPackages.map(pkg => {
                 const pkgSubPackages = subPackages[pkg.id] || [];
                 const isSubExpanded = expandedSub.has(pkg.id);
-                const hasSubPackages = pkgSubPackages.length > 0;
+                const hasSubPackages = pkgSubPackages.length > 0 || !subPackages[pkg.id]; // Show chevron if not loaded yet
                 const isSelected = selectedPackage === pkg.id && !selectedSubPackage;
 
                 return (
@@ -147,8 +147,12 @@ export const CollapsiblePackageList = ({
                           variant="ghost"
                           size="sm"
                           className="w-8 h-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSub(pkg.id);
+                          }}
                         >
-                          {hasSubPackages && isSubExpanded ? (
+                          {isSubExpanded ? (
                             <ChevronDown className="w-3 h-3" />
                           ) : (
                             <ChevronRight className="w-3 h-3" />
@@ -170,21 +174,27 @@ export const CollapsiblePackageList = ({
                     </div>
                     <CollapsibleContent className="pl-8 space-y-1">
                       {/* Sub-sub packages (1.1.1, 1.1.2...) */}
-                      {pkgSubPackages.map(subPkg => {
-                        const isSubSelected = selectedSubPackage === subPkg.id;
-                        
-                        return (
-                          <Button
-                            key={subPkg.id}
-                            variant={isSubSelected ? "default" : "ghost"}
-                            size="sm"
-                            className="w-full justify-start text-xs"
-                            onClick={() => onSelectPackage(pkg.id, subPkg.id)}
-                          >
-                            <span className="flex-1 text-left">{subPkg.name}</span>
-                          </Button>
-                        );
-                      })}
+                      {pkgSubPackages.length > 0 ? (
+                        pkgSubPackages.map(subPkg => {
+                          const isSubSelected = selectedSubPackage === subPkg.id;
+                          
+                          return (
+                            <Button
+                              key={subPkg.id}
+                              variant={isSubSelected ? "default" : "ghost"}
+                              size="sm"
+                              className="w-full justify-start text-xs"
+                              onClick={() => onSelectPackage(pkg.id, subPkg.id)}
+                            >
+                              <span className="flex-1 text-left">{subPkg.name}</span>
+                            </Button>
+                          );
+                        })
+                      ) : (
+                        <div className="text-xs text-muted-foreground px-2 py-1">
+                          Alt paket yok
+                        </div>
+                      )}
                     </CollapsibleContent>
                   </Collapsible>
                 );
