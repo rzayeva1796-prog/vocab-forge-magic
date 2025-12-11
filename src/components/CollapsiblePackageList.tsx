@@ -48,12 +48,14 @@ export const CollapsiblePackageList = ({
     // Always load if not already loaded (check for undefined, not just falsy)
     if (subPackages[packageId] !== undefined) return;
 
-    const { data } = await supabase
+    console.log("Loading sub-packages for package:", packageId);
+    const { data, error } = await supabase
       .from("sub_packages")
       .select("*")
       .eq("package_id", packageId)
       .order("display_order");
 
+    console.log("Sub-packages loaded:", data?.length, "error:", error);
     // Set empty array if no data to prevent re-fetching
     setSubPackages(prev => ({ ...prev, [packageId]: (data || []) as SubPackage[] }));
   };
@@ -130,7 +132,17 @@ export const CollapsiblePackageList = ({
             <CollapsibleContent className="pl-4 space-y-1">
               {/* Sub groups (1.1, 1.2, 1.3...) */}
               {mainPackages.map(pkg => {
-                const pkgSubPackages = subPackages[pkg.id] || [];
+                // Sort sub-packages numerically by name (1.1.1, 1.1.2, ..., 1.1.10)
+                const pkgSubPackages = (subPackages[pkg.id] || []).sort((a, b) => {
+                  const aParts = a.name.split('.').map(p => parseInt(p) || 0);
+                  const bParts = b.name.split('.').map(p => parseInt(p) || 0);
+                  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                    const aVal = aParts[i] || 0;
+                    const bVal = bParts[i] || 0;
+                    if (aVal !== bVal) return aVal - bVal;
+                  }
+                  return 0;
+                });
                 const isSubExpanded = expandedSub.has(pkg.id);
                 const hasSubPackages = pkgSubPackages.length > 0 || !subPackages[pkg.id]; // Show chevron if not loaded yet
                 const isSelected = selectedPackage === pkg.id && !selectedSubPackage;
