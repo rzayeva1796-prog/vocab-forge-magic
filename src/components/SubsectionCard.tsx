@@ -64,6 +64,7 @@ export const SubsectionCard = ({
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedSubPackage, setSelectedSubPackage] = useState<string | null>(null);
+  const [savedSubPackage, setSavedSubPackage] = useState<string | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -514,6 +515,8 @@ export const SubsectionCard = ({
               packageName={subsection.package_name || ""}
               selectedSubPackage={selectedSubPackage}
               onSelect={setSelectedSubPackage}
+              onSave={(subPkgId) => setSavedSubPackage(subPkgId)}
+              savedSubPackage={savedSubPackage}
             />
           )}
 
@@ -722,6 +725,7 @@ export const SubsectionCard = ({
           packageName={subsection.package_name || "Kelimeler"}
           subsectionId={subsection.id}
           onActivate={onUpdate}
+          subPackageId={savedSubPackage}
         />
       )}
     </>

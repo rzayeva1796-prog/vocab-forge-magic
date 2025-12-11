@@ -45,7 +45,8 @@ export const CollapsiblePackageList = ({
 
   // Load sub-packages when a package is expanded
   const loadSubPackages = async (packageId: string) => {
-    if (subPackages[packageId]) return;
+    // Always load if not already loaded (check for undefined, not just falsy)
+    if (subPackages[packageId] !== undefined) return;
 
     const { data } = await supabase
       .from("sub_packages")
@@ -53,9 +54,8 @@ export const CollapsiblePackageList = ({
       .eq("package_id", packageId)
       .order("display_order");
 
-    if (data) {
-      setSubPackages(prev => ({ ...prev, [packageId]: data as SubPackage[] }));
-    }
+    // Set empty array if no data to prevent re-fetching
+    setSubPackages(prev => ({ ...prev, [packageId]: (data || []) as SubPackage[] }));
   };
 
   const toggleMain = (mainNum: number) => {
