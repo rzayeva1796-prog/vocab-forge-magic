@@ -649,6 +649,7 @@ export type Database = {
           id: string
           package_id: string | null
           section_id: string
+          selected_sub_package_id: string | null
         }
         Insert: {
           background_url?: string | null
@@ -658,6 +659,7 @@ export type Database = {
           id?: string
           package_id?: string | null
           section_id: string
+          selected_sub_package_id?: string | null
         }
         Update: {
           background_url?: string | null
@@ -667,6 +669,7 @@ export type Database = {
           id?: string
           package_id?: string | null
           section_id?: string
+          selected_sub_package_id?: string | null
         }
         Relationships: [
           {
@@ -681,6 +684,13 @@ export type Database = {
             columns: ["section_id"]
             isOneToOne: false
             referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subsections_selected_sub_package_id_fkey"
+            columns: ["selected_sub_package_id"]
+            isOneToOne: false
+            referencedRelation: "sub_packages"
             referencedColumns: ["id"]
           },
         ]

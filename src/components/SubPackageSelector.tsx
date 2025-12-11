@@ -58,7 +58,6 @@ export const SubPackageSelector = ({
   const handleSave = () => {
     if (onSave) {
       onSave(selectedSubPackage);
-      toast.success("Alt paket kaydedildi");
     }
   };
 
