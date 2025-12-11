@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trophy, LogIn } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,7 @@ interface GameWord extends Word {
 
 const Game = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const [allWords, setAllWords] = useState<Word[]>([]);
@@ -31,20 +32,34 @@ const Game = () => {
   const [isGameComplete, setIsGameComplete] = useState(false);
   const [availableWords, setAvailableWords] = useState<Word[]>([]);
 
+  // Get package_id and sub_package_id from URL params
+  const packageId = searchParams.get("package_id");
+  const subPackageId = searchParams.get("sub_package_id");
+
   useEffect(() => {
     if (!authLoading && user) {
       loadGameData();
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, packageId, subPackageId]);
 
   const loadGameData = async () => {
     if (!user) return;
 
-    // Load all learned words
-    const { data: words } = await supabase
+    // Build query based on package/sub-package selection
+    let query = supabase
       .from("learned_words")
       .select("id, english, turkish")
       .order("added_at", { ascending: true });
+
+    if (subPackageId) {
+      // Filter by specific sub-package
+      query = query.eq("sub_package_id", subPackageId);
+    } else if (packageId) {
+      // Filter by package (all words in package)
+      query = query.eq("package_id", packageId);
+    }
+
+    const { data: words } = await query;
 
     if (!words || words.length === 0) {
       toast({
