@@ -180,8 +180,8 @@ const Words = () => {
         
         subs.forEach((sub, idx) => {
           if (idx === 0) {
-            // First subsection: only needs activation
-            sub.unlocked = sub.activated === true;
+            // First subsection of section: always unlocked for all users
+            sub.unlocked = true;
           } else {
             const prevSub = subs[idx - 1];
             const prevHasMinStars = (prevSub.min_star_rating ?? 0) >= 3;
