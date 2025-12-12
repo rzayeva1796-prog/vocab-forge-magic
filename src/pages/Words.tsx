@@ -262,12 +262,30 @@ const Words = () => {
 
   const handleAddSubsection = async (sectionId: string) => {
     try {
+      // Get existing subsections to determine correct order
       const sectionSubs = subsections.filter(s => s.section_id === sectionId);
+      
+      // Find highest display_order and package_name pattern
+      let maxOrder = 0;
+      let maxPackageNum = 0;
+      
+      sectionSubs.forEach(s => {
+        if (s.display_order > maxOrder) maxOrder = s.display_order;
+        // Parse package_name like "1.1", "1.2" to get highest number
+        if (s.package_name) {
+          const parts = s.package_name.split('.');
+          if (parts.length >= 2) {
+            const num = parseInt(parts[1]) || 0;
+            if (num > maxPackageNum) maxPackageNum = num;
+          }
+        }
+      });
+      
       const { data, error } = await supabase
         .from("subsections")
         .insert({ 
           section_id: sectionId, 
-          display_order: sectionSubs.length 
+          display_order: maxOrder + 1
         })
         .select()
         .single();

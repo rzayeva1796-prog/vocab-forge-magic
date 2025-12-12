@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { GraduationCap, Trash2, FolderPlus, Package, ArrowLeft, X, Pencil, Check, Loader2 } from "lucide-react";
+import { GraduationCap, Trash2, FolderPlus, Package, ArrowLeft, X, Pencil, Check, Loader2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +53,8 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
   const [editingWord, setEditingWord] = useState<{english: string; turkish: string} | null>(null);
   const [editEnglish, setEditEnglish] = useState("");
   const [editTurkish, setEditTurkish] = useState("");
+  const [expandedLevel1, setExpandedLevel1] = useState<string | null>(null);
+  const [expandedLevel2, setExpandedLevel2] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -499,173 +502,293 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     </>
   );
 
-  const renderPackagesView = () => (
-    <>
-      <SheetHeader>
-        <SheetTitle className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              setViewMode("main");
-              setSelectedPackage(null);
-            }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-          <Package className="w-5 h-5" />
-          Kelime Paketleri
-        </SheetTitle>
-      </SheetHeader>
+  const renderPackagesView = () => {
+    // Group packages by hierarchy: 1 -> 1.1, 1.2 -> 1.1.1, 1.1.2
+    const groupPackagesByHierarchy = () => {
+      const hierarchy: Record<string, Record<string, WordPackage[]>> = {};
+      
+      packages.forEach(pkg => {
+        const parts = pkg.name.split('.');
+        if (parts.length >= 1) {
+          const level1 = parts[0]; // "1"
+          const level2 = parts.length >= 2 ? `${parts[0]}.${parts[1]}` : null; // "1.1"
+          
+          if (!hierarchy[level1]) {
+            hierarchy[level1] = {};
+          }
+          
+          if (level2) {
+            if (!hierarchy[level1][level2]) {
+              hierarchy[level1][level2] = [];
+            }
+            hierarchy[level1][level2].push(pkg);
+          } else {
+            // Package without second level (just "1")
+            if (!hierarchy[level1]["_root"]) {
+              hierarchy[level1]["_root"] = [];
+            }
+            hierarchy[level1]["_root"].push(pkg);
+          }
+        }
+      });
+      
+      return hierarchy;
+    };
 
-      <div className="flex flex-wrap gap-2 mt-4 mb-4">
-        <Button
-          variant={selectedPackage === "all" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setSelectedPackage("all")}
-        >
-          Tümü ({words.length})
-        </Button>
-        {packages.map((pkg) => (
-          <div key={pkg.id} className="flex items-center gap-1">
+    const hierarchy = groupPackagesByHierarchy();
+    const sortedLevel1Keys = Object.keys(hierarchy).sort((a, b) => parseInt(a) - parseInt(b));
+
+    return (
+      <>
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
             <Button
-              variant={selectedPackage === pkg.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedPackage(pkg.id)}
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                setViewMode("main");
+                setSelectedPackage(null);
+                setExpandedLevel1(null);
+                setExpandedLevel2(null);
+              }}
             >
-              {pkg.name} ({getPackageWordCount(pkg.id)})
+              <ArrowLeft className="w-4 h-4" />
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7">
-                  <X className="w-3 h-3 text-destructive" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Paketi Sil</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    "{pkg.name}" paketini silmek istediğinize emin misiniz? 
-                    Kelimeler silinmeyecek, sadece paket bağlantısı kaldırılacak.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>İptal</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDeletePackage(pkg.id, pkg.name)}>
-                    Sil
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        ))}
-        
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
-              <Trash2 className="w-3 h-3 mr-1" />
-              Paketsiz Kelimeleri Sil
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Paketsiz Kelimeleri Sil</AlertDialogTitle>
-              <AlertDialogDescription>
-                Hiçbir pakete ait olmayan tüm kelimeler silinecek. Bu işlem geri alınamaz.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>İptal</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDeleteOrphanWords}>
-                Sil
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
+            <Package className="w-5 h-5" />
+            Kelime Paketleri
+          </SheetTitle>
+        </SheetHeader>
 
-      <ScrollArea className="h-[calc(100vh-14rem)]">
-        {loadingPackageWords ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <div className="flex flex-wrap gap-2 mt-4 mb-4">
+          <Button
+            variant={selectedPackage === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSelectedPackage("all")}
+          >
+            Tümü ({words.length})
+          </Button>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
+                <Trash2 className="w-3 h-3 mr-1" />
+                Paketsiz Kelimeleri Sil
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Paketsiz Kelimeleri Sil</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Hiçbir pakete ait olmayan tüm kelimeler silinecek. Bu işlem geri alınamaz.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>İptal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteOrphanWords}>
+                  Sil
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+
+        {/* Hierarchical Package Tree */}
+        <ScrollArea className="h-[calc(100vh-16rem)]">
+          <div className="space-y-1 pr-4 mb-4">
+            {sortedLevel1Keys.map((level1) => {
+              const level2Keys = Object.keys(hierarchy[level1])
+                .filter(k => k !== "_root")
+                .sort((a, b) => {
+                  const aParts = a.split('.').map(p => parseInt(p));
+                  const bParts = b.split('.').map(p => parseInt(p));
+                  for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                    if ((aParts[i] || 0) !== (bParts[i] || 0)) {
+                      return (aParts[i] || 0) - (bParts[i] || 0);
+                    }
+                  }
+                  return 0;
+                });
+              
+              const isLevel1Expanded = expandedLevel1 === level1;
+
+              return (
+                <div key={level1} className="border rounded-lg overflow-hidden">
+                  {/* Level 1 Header */}
+                  <button
+                    onClick={() => setExpandedLevel1(isLevel1Expanded ? null : level1)}
+                    className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition-colors"
+                  >
+                    <span className="font-semibold">{level1}</span>
+                    <ChevronDown className={cn("w-4 h-4 transition-transform", isLevel1Expanded && "rotate-180")} />
+                  </button>
+
+                  {/* Level 2 Content */}
+                  {isLevel1Expanded && (
+                    <div className="p-2 space-y-1">
+                      {level2Keys.map((level2) => {
+                        const level3Packages = hierarchy[level1][level2].sort((a, b) => {
+                          const aParts = a.name.split('.').map(p => parseInt(p));
+                          const bParts = b.name.split('.').map(p => parseInt(p));
+                          for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
+                            if ((aParts[i] || 0) !== (bParts[i] || 0)) {
+                              return (aParts[i] || 0) - (bParts[i] || 0);
+                            }
+                          }
+                          return 0;
+                        });
+                        const isLevel2Expanded = expandedLevel2 === level2;
+
+                        return (
+                          <div key={level2} className="ml-2 border-l-2 border-muted-foreground/20">
+                            {/* Level 2 Header */}
+                            <button
+                              onClick={() => setExpandedLevel2(isLevel2Expanded ? null : level2)}
+                              className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors"
+                            >
+                              <span className="font-medium text-sm">{level2}</span>
+                              <ChevronDown className={cn("w-3 h-3 transition-transform", isLevel2Expanded && "rotate-180")} />
+                            </button>
+
+                            {/* Level 3 Packages */}
+                            {isLevel2Expanded && (
+                              <div className="ml-2 space-y-1 pb-2">
+                                {level3Packages.map((pkg) => (
+                                  <div key={pkg.id} className="flex items-center gap-1">
+                                    <Button
+                                      variant={selectedPackage === pkg.id ? "default" : "ghost"}
+                                      size="sm"
+                                      className="flex-1 justify-start h-8 text-xs"
+                                      onClick={() => setSelectedPackage(pkg.id)}
+                                    >
+                                      {pkg.name} ({pkg.word_count})
+                                    </Button>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                          <X className="w-3 h-3 text-destructive" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Paketi Sil</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            "{pkg.name}" paketini silmek istediğinize emin misiniz?
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>İptal</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDeletePackage(pkg.id, pkg.name)}>
+                                            Sil
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ) : getFilteredWords().length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-            <p>Bu pakette kelime yok.</p>
-          </div>
-        ) : (
-          <div className="space-y-1 pr-4">
-            {getFilteredWords().map((word, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between p-3 rounded-md hover:bg-secondary/50 transition-colors group"
-              >
-                {editingWord?.english === word.english && editingWord?.turkish === word.turkish ? (
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      value={editEnglish}
-                      onChange={(e) => setEditEnglish(e.target.value)}
-                      placeholder="İngilizce"
-                      className="h-8"
-                    />
-                    <Input
-                      value={editTurkish}
-                      onChange={(e) => setEditTurkish(e.target.value)}
-                      placeholder="Türkçe"
-                      className="h-8"
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={handleEditWord}>
-                        <Check className="w-3 h-3 mr-1" />
-                        Kaydet
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditingWord(null)}>
-                        <X className="w-3 h-3 mr-1" />
-                        İptal
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{word.english}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {word.frequency_group}
-                        </Badge>
-                      </div>
-                      <span className="text-sm text-muted-foreground">{word.turkish}</span>
-                    </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingWord({ english: word.english, turkish: word.turkish });
-                          setEditEnglish(word.english);
-                          setEditTurkish(word.turkish);
-                        }}
-                      >
-                        <Pencil className="w-4 h-4 text-muted-foreground" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => onRemove(word)}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </>
-                )}
+
+          {/* Selected package words */}
+          {selectedPackage && (
+            <>
+              <div className="border-t pt-4">
+                <h3 className="font-semibold mb-2">
+                  {selectedPackage === "all" ? "Tüm Kelimeler" : packages.find(p => p.id === selectedPackage)?.name}
+                </h3>
               </div>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
-    </>
-  );
+              {loadingPackageWords ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : getFilteredWords().length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p>Bu pakette kelime yok.</p>
+                </div>
+              ) : (
+                <div className="space-y-1 pr-4">
+                  {getFilteredWords().map((word, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-3 rounded-md hover:bg-secondary/50 transition-colors group"
+                    >
+                      {editingWord?.english === word.english && editingWord?.turkish === word.turkish ? (
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            value={editEnglish}
+                            onChange={(e) => setEditEnglish(e.target.value)}
+                            placeholder="İngilizce"
+                            className="h-8"
+                          />
+                          <Input
+                            value={editTurkish}
+                            onChange={(e) => setEditTurkish(e.target.value)}
+                            placeholder="Türkçe"
+                            className="h-8"
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={handleEditWord}>
+                              <Check className="w-3 h-3 mr-1" />
+                              Kaydet
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingWord(null)}>
+                              <X className="w-3 h-3 mr-1" />
+                              İptal
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{word.english}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {word.frequency_group}
+                              </Badge>
+                            </div>
+                            <span className="text-sm text-muted-foreground">{word.turkish}</span>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingWord({ english: word.english, turkish: word.turkish });
+                                setEditEnglish(word.english);
+                                setEditTurkish(word.turkish);
+                              }}
+                            >
+                              <Pencil className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => onRemove(word)}
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </ScrollArea>
+      </>
+    );
+  };
 
   const renderAddPackageView = () => (
     <>
