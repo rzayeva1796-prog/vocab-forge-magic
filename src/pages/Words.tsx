@@ -160,10 +160,18 @@ const Words = () => {
       // 1. First subsection: must be activated (viewed words + clicked Aktifleştir)
       // 2. Other subsections: previous subsection must have >= 3 stars AND this subsection must be activated
       Object.keys(subsectionsBySectionId).forEach(sectionId => {
-        // Sort by package_name numerically (1.1, 1.2, ..., 1.10) instead of display_order
+        // Sort by package_name numerically (1.1, 1.2, ..., 1.10), items without package_name at end by display_order
         const subs = subsectionsBySectionId[sectionId].sort((a, b) => {
           const aName = a.package_name || '';
           const bName = b.package_name || '';
+          
+          // If both have no package_name, sort by display_order
+          if (!aName && !bName) {
+            return (a.display_order || 0) - (b.display_order || 0);
+          }
+          // Items without package_name go to the end
+          if (!aName) return 1;
+          if (!bName) return -1;
           
           // Parse package names like "1.1", "1.2", "1.10"
           const aParts = aName.split('.').map(p => parseInt(p) || 0);
@@ -175,13 +183,20 @@ const Words = () => {
             const bVal = bParts[i] || 0;
             if (aVal !== bVal) return aVal - bVal;
           }
-          return 0;
+          return (a.display_order || 0) - (b.display_order || 0);
         });
         
+        // Get section index to check if it's the first section
+        const sectionIndex = (sectionsData || []).findIndex(s => s.id === sectionId);
+        const isFirstSection = sectionIndex === 0;
+        
         subs.forEach((sub, idx) => {
-          if (idx === 0) {
-            // First subsection of section: always unlocked for all users
+          if (isFirstSection && idx === 0) {
+            // First subsection of FIRST section: always unlocked for all users (no activation required)
             sub.unlocked = true;
+          } else if (idx === 0) {
+            // First subsection of other sections: needs activation only
+            sub.unlocked = sub.activated === true;
           } else {
             const prevSub = subs[idx - 1];
             const prevHasMinStars = (prevSub.min_star_rating ?? 0) >= 3;
