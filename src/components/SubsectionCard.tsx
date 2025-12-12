@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -63,6 +63,8 @@ export const SubsectionCard = ({
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [adjustingStars, setAdjustingStars] = useState(false);
+  const [showNameDialog, setShowNameDialog] = useState(false);
+  const [editName, setEditName] = useState((subsection as any).name || subsection.package_name || "");
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -232,6 +234,27 @@ export const SubsectionCard = ({
     } catch (error) {
       console.error("Error saving package:", error);
       toast.error("Paket atanamadı");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!editName.trim()) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("subsections")
+        .update({ name: editName.trim() })
+        .eq("id", subsection.id);
+
+      if (error) throw error;
+      toast.success("İsim güncellendi");
+      setShowNameDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error saving name:", error);
+      toast.error("İsim güncellenemedi");
     } finally {
       setSaving(false);
     }
@@ -516,7 +539,7 @@ export const SubsectionCard = ({
               subsection.unlocked || isAdmin ? "text-foreground" : "text-muted-foreground"
             )}
           >
-            {subsection.package_name || "Paket seç"}
+            {(subsection as any).name || subsection.package_name || "Paket seç"}
           </span>
           {subsection.word_count !== undefined && (
             <span className="text-xs text-muted-foreground">
@@ -569,6 +592,21 @@ export const SubsectionCard = ({
           )}
 
           {/* Background Image Button for Admin */}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 mt-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowNameDialog(true);
+              }}
+            >
+              <Pencil className="w-3 h-3 mr-1" />
+              İsim
+            </Button>
+          )}
+          
           {isAdmin && (
             <Button
               variant="outline"
@@ -666,6 +704,27 @@ export const SubsectionCard = ({
             </Button>
 
             <Button onClick={handleSavePackage} disabled={!selectedPackage || saving} className="w-full">
+              {saving ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Name Edit Dialog */}
+      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alt Bölüm İsmini Düzenle</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Alt bölüm ismi"
+              className="w-full p-2 border rounded-md"
+            />
+            <Button onClick={handleSaveName} disabled={!editName.trim() || saving} className="w-full">
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </div>

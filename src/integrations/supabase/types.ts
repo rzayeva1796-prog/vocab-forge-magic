@@ -648,6 +648,7 @@ export type Database = {
           display_order: number | null
           icon_url: string | null
           id: string
+          name: string | null
           package_id: string | null
           section_id: string
           selected_sub_package_id: string | null
@@ -659,6 +660,7 @@ export type Database = {
           display_order?: number | null
           icon_url?: string | null
           id?: string
+          name?: string | null
           package_id?: string | null
           section_id: string
           selected_sub_package_id?: string | null
@@ -670,6 +672,7 @@ export type Database = {
           display_order?: number | null
           icon_url?: string | null
           id?: string
+          name?: string | null
           package_id?: string | null
           section_id?: string
           selected_sub_package_id?: string | null
