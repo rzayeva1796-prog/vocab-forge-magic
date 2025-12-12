@@ -9,14 +9,18 @@ const GameSelection = () => {
   const [searchParams] = useSearchParams();
   const { user, loading } = useAuth();
   
-  // Get package_id from URL if coming from Words page
+  // Get package_id and additional_package_ids from URL if coming from Words page
   const packageId = searchParams.get("package_id");
+  const additionalPackageIds = searchParams.get("additional_package_ids");
 
   const handleGameClick = (baseUrl: string) => {
     if (user) {
       let url = `${baseUrl}?user_id=${user.id}`;
       if (packageId) {
         url += `&package_id=${packageId}`;
+      }
+      if (additionalPackageIds) {
+        url += `&additional_package_ids=${additionalPackageIds}`;
       }
       window.location.href = url;
     } else {

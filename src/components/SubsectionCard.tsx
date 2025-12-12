@@ -21,6 +21,7 @@ interface Subsection {
   unlocked?: boolean;
   min_star_rating?: number;
   background_url?: string | null;
+  additional_package_ids?: string[];
 }
 
 interface SubsectionCardProps {
@@ -54,6 +55,9 @@ export const SubsectionCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWordsPreview, setShowWordsPreview] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
+  const [additionalPackages, setAdditionalPackages] = useState<string[]>(
+    ((subsection as any).additional_package_ids as string[]) || []
+  );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
@@ -169,15 +173,20 @@ export const SubsectionCard = ({
   };
 
   const handleClick = () => {
+    const additionalIds = subsection.additional_package_ids || [];
+    const additionalParam = additionalIds.length > 0 
+      ? `&additional_package_ids=${additionalIds.join(',')}` 
+      : '';
+    
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        navigate(`/game?package_id=${subsection.package_id}`);
+        navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        navigate(`/game?package_id=${subsection.package_id}`);
+        navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
       }
     }
   };
@@ -189,17 +198,35 @@ export const SubsectionCard = ({
     }
   };
 
+  const addAdditionalPackage = () => {
+    setAdditionalPackages(prev => [...prev, ""]);
+  };
+
+  const removeAdditionalPackage = (idx: number) => {
+    setAdditionalPackages(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateAdditionalPackage = (idx: number, value: string) => {
+    setAdditionalPackages(prev => prev.map((p, i) => i === idx ? value : p));
+  };
+
   const handleSavePackage = async () => {
     if (!selectedPackage) return;
     setSaving(true);
     try {
+      // Filter out empty additional packages
+      const validAdditionalPackages = additionalPackages.filter(p => p && p !== selectedPackage);
+      
       const { error } = await supabase
         .from("subsections")
-        .update({ package_id: selectedPackage })
+        .update({ 
+          package_id: selectedPackage,
+          additional_package_ids: validAdditionalPackages
+        })
         .eq("id", subsection.id);
 
       if (error) throw error;
-      toast.success("Paket atandı");
+      toast.success("Paketler atandı");
       setShowPackageDialog(false);
       onUpdate();
     } catch (error) {
@@ -576,23 +603,68 @@ export const SubsectionCard = ({
 
       {/* Package Selection Dialog */}
       <Dialog open={showPackageDialog} onOpenChange={setShowPackageDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Paket Seç</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Select value={selectedPackage} onValueChange={setSelectedPackage}>
-              <SelectTrigger>
-                <SelectValue placeholder="Bir paket seçin" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePackages.map((pkg) => (
-                  <SelectItem key={pkg.id} value={pkg.id}>
-                    {pkg.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Primary package */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ana Paket</label>
+              <Select value={selectedPackage} onValueChange={setSelectedPackage}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bir paket seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePackages.map((pkg) => (
+                    <SelectItem key={pkg.id} value={pkg.id}>
+                      {pkg.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Additional packages */}
+            {additionalPackages.map((pkgId, idx) => (
+              <div key={idx} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Ek Paket {idx + 1}</label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-destructive"
+                    onClick={() => removeAdditionalPackage(idx)}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <Select value={pkgId} onValueChange={(val) => updateAdditionalPackage(idx, val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Bir paket seçin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePackages.map((pkg) => (
+                      <SelectItem key={pkg.id} value={pkg.id}>
+                        {pkg.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ))}
+
+            {/* Add more package button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addAdditionalPackage}
+              className="w-full"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Paket Ekle
+            </Button>
+
             <Button onClick={handleSavePackage} disabled={!selectedPackage || saving} className="w-full">
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
@@ -702,6 +774,7 @@ export const SubsectionCard = ({
           packageName={subsection.package_name || "Kelimeler"}
           subsectionId={subsection.id}
           onActivate={onUpdate}
+          additionalPackageIds={subsection.additional_package_ids || []}
         />
       )}
     </>
