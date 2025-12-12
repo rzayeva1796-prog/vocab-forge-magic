@@ -22,7 +22,6 @@ interface WordsPreviewModalProps {
   packageName: string;
   subsectionId: string;
   onActivate: () => void;
-  subPackageId?: string | null;
 }
 
 export const WordsPreviewModal = ({
@@ -32,7 +31,6 @@ export const WordsPreviewModal = ({
   packageName,
   subsectionId,
   onActivate,
-  subPackageId,
 }: WordsPreviewModalProps) => {
   const { user } = useAuth();
   const [words, setWords] = useState<Word[]>([]);
@@ -83,22 +81,16 @@ export const WordsPreviewModal = ({
     if (open && packageId) {
       fetchWords();
     }
-  }, [open, packageId, subPackageId]);
+  }, [open, packageId]);
 
   const fetchWords = async () => {
     setLoading(true);
     try {
-      let query = supabase
+      const { data, error } = await supabase
         .from("learned_words")
         .select("id, english, turkish, audio_url")
-        .eq("package_id", packageId);
-      
-      // Filter by sub-package if selected
-      if (subPackageId) {
-        query = query.eq("sub_package_id", subPackageId);
-      }
-      
-      const { data, error } = await query.order("english");
+        .eq("package_id", packageId)
+        .order("english");
 
       if (error) throw error;
       setWords(data || []);

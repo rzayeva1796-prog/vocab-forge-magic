@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { WordsPreviewModal } from "./WordsPreviewModal";
-import { SubPackageSelector } from "./SubPackageSelector";
 
 interface Subsection {
   id: string;
@@ -22,7 +21,6 @@ interface Subsection {
   unlocked?: boolean;
   min_star_rating?: number;
   background_url?: string | null;
-  selected_sub_package_id?: string | null;
 }
 
 interface SubsectionCardProps {
@@ -64,8 +62,6 @@ export const SubsectionCard = ({
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedSubPackage, setSelectedSubPackage] = useState<string | null>(subsection.selected_sub_package_id || null);
-  const [savedSubPackage, setSavedSubPackage] = useState<string | null>(subsection.selected_sub_package_id || null);
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -173,26 +169,15 @@ export const SubsectionCard = ({
   };
 
   const handleClick = () => {
-    // Use saved sub-package from database, not the current selection
-    const subPkgId = savedSubPackage || subsection.selected_sub_package_id;
-    
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else {
-        // Navigate directly to internal pair game with sub_package_id
-        const url = subPkgId 
-          ? `/game/pair?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
-          : `/game/pair?package_id=${subsection.package_id}`;
-        navigate(url);
+        navigate(`/game?package_id=${subsection.package_id}`);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        // Navigate directly to internal pair game with sub_package_id
-        const url = subPkgId 
-          ? `/game/pair?package_id=${subsection.package_id}&sub_package_id=${subPkgId}`
-          : `/game/pair?package_id=${subsection.package_id}`;
-        navigate(url);
+        navigate(`/game?package_id=${subsection.package_id}`);
       }
     }
   };
@@ -512,32 +497,6 @@ export const SubsectionCard = ({
             </span>
           )}
 
-          {/* Sub-package selector - only for admin users */}
-          {isAdmin && subsection.package_id && (
-            <SubPackageSelector
-              packageId={subsection.package_id}
-              packageName={subsection.package_name || ""}
-              selectedSubPackage={selectedSubPackage}
-              onSelect={setSelectedSubPackage}
-              onSave={async (subPkgId) => {
-                try {
-                  const { error } = await supabase
-                    .from("subsections")
-                    .update({ selected_sub_package_id: subPkgId })
-                    .eq("id", subsection.id);
-                  
-                  if (error) throw error;
-                  setSavedSubPackage(subPkgId);
-                  toast.success("Alt paket kaydedildi");
-                } catch (error) {
-                  console.error("Error saving sub-package:", error);
-                  toast.error("Alt paket kaydedilemedi");
-                }
-              }}
-              savedSubPackage={savedSubPackage}
-            />
-          )}
-
           {subsection.package_id && (
             <Button
               variant="outline"
@@ -743,7 +702,6 @@ export const SubsectionCard = ({
           packageName={subsection.package_name || "Kelimeler"}
           subsectionId={subsection.id}
           onActivate={onUpdate}
-          subPackageId={savedSubPackage}
         />
       )}
     </>

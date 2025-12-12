@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Trophy, LogIn } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +18,6 @@ interface GameWord extends Word {
 
 const Game = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const [allWords, setAllWords] = useState<Word[]>([]);
@@ -32,50 +31,25 @@ const Game = () => {
   const [isGameComplete, setIsGameComplete] = useState(false);
   const [availableWords, setAvailableWords] = useState<Word[]>([]);
 
-  // Get package_id and sub_package_id from URL params
-  const packageId = searchParams.get("package_id");
-  const subPackageId = searchParams.get("sub_package_id");
-
   useEffect(() => {
     if (!authLoading && user) {
       loadGameData();
     }
-  }, [user, authLoading, packageId, subPackageId]);
+  }, [user, authLoading]);
 
   const loadGameData = async () => {
     if (!user) return;
 
-    console.log("Game loadGameData - packageId:", packageId, "subPackageId:", subPackageId);
-
-    // Build query based on package/sub-package selection
-    let query = supabase
+    // Load all learned words
+    const { data: words } = await supabase
       .from("learned_words")
-      .select("id, english, turkish, sub_package_id")
+      .select("id, english, turkish")
       .order("added_at", { ascending: true });
-
-    if (subPackageId) {
-      // Filter by specific sub-package
-      console.log("Filtering by sub_package_id:", subPackageId);
-      query = query.eq("sub_package_id", subPackageId);
-    } else if (packageId) {
-      // Filter by package (all words in package)
-      console.log("Filtering by package_id only:", packageId);
-      query = query.eq("package_id", packageId);
-    }
-
-    const { data: words, error } = await query;
-    
-    console.log("Game loaded words:", words?.length, "error:", error);
-    if (words && words.length > 0) {
-      console.log("First word sub_package_id:", words[0].sub_package_id);
-    }
 
     if (!words || words.length === 0) {
       toast({
-        title: "Kelime Yok",
-        description: subPackageId 
-          ? "Bu alt pakette kelime bulunamadı! Alt paket seçimini kontrol edin."
-          : "Önce sözlükte kelime öğrenin!",
+        title: "No Words",
+        description: "Please learn some words first in the dictionary!",
         variant: "destructive",
       });
       return;

@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from "xlsx";
-import { CollapsiblePackageList } from "./CollapsiblePackageList";
 
 interface Word {
   english: string;
@@ -46,7 +45,6 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
   const [viewMode, setViewMode] = useState<ViewMode>("main");
   const [packages, setPackages] = useState<WordPackage[]>([]);
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
-  const [selectedSubPackage, setSelectedSubPackage] = useState<string | null>(null);
   const [newPackageName, setNewPackageName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [packageWords, setPackageWords] = useState<Word[]>([]);
@@ -60,16 +58,16 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
     loadPackages();
   }, []);
 
-  // Load words for selected package/sub-package (handles > 1000 words)
+  // Load words for selected package (handles > 1000 words)
   useEffect(() => {
-    if (selectedPackage === null) {
+    if (selectedPackage && selectedPackage !== "all") {
+      loadPackageWords(selectedPackage);
+    } else if (selectedPackage === "all") {
       setPackageWords(words);
-    } else {
-      loadPackageWords(selectedPackage, selectedSubPackage);
     }
-  }, [selectedPackage, selectedSubPackage, words]);
+  }, [selectedPackage, words]);
 
-  const loadPackageWords = async (packageId: string, subPackageId: string | null) => {
+  const loadPackageWords = async (packageId: string) => {
     setLoadingPackageWords(true);
     try {
       // Fetch all words for package without 1000 limit by paginating
@@ -79,17 +77,10 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
       let hasMore = true;
 
       while (hasMore) {
-        let query = supabase
+        const { data, error } = await supabase
           .from("learned_words")
           .select("english, turkish, frequency_group, package_id")
-          .eq("package_id", packageId);
-
-        // Filter by sub-package if selected
-        if (subPackageId) {
-          query = query.eq("sub_package_id", subPackageId);
-        }
-
-        const { data, error } = await query
+          .eq("package_id", packageId)
           .range(offset, offset + limit - 1)
           .order("added_at", { ascending: false });
 
@@ -162,8 +153,8 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
       });
 
       setEditingWord(null);
-      if (selectedPackage) {
-        loadPackageWords(selectedPackage, selectedSubPackage);
+      if (selectedPackage && selectedPackage !== "all") {
+        loadPackageWords(selectedPackage);
       }
       onWordsAdded?.();
     } catch (error) {
@@ -424,23 +415,18 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
   };
 
   const getFilteredWords = () => {
-    if (selectedPackage === null) {
+    if (selectedPackage === null || selectedPackage === "all") {
       return words;
     }
     return packageWords;
   };
 
   const getPackageWordCount = (packageId: string | null) => {
-    if (packageId === null) {
+    if (packageId === null || packageId === "all") {
       return words.length;
     }
     const pkg = packages.find(p => p.id === packageId);
     return pkg?.word_count || 0;
-  };
-
-  const handleSelectPackage = (packageId: string | null, subPackageId: string | null) => {
-    setSelectedPackage(packageId);
-    setSelectedSubPackage(subPackageId);
   };
 
   const renderMainView = () => (
@@ -523,7 +509,6 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
             onClick={() => {
               setViewMode("main");
               setSelectedPackage(null);
-              setSelectedSubPackage(null);
             }}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -533,45 +518,73 @@ export const LearnedWordsDrawer = ({ words, onRemove, onWordsAdded }: LearnedWor
         </SheetTitle>
       </SheetHeader>
 
-      <div className="mt-4 mb-4">
-        <ScrollArea className="h-[200px] border rounded-md p-2">
-          <CollapsiblePackageList
-            packages={packages}
-            selectedPackage={selectedPackage}
-            selectedSubPackage={selectedSubPackage}
-            onSelectPackage={handleSelectPackage}
-            showAllOption={true}
-            totalWords={words.length}
-          />
-        </ScrollArea>
+      <div className="flex flex-wrap gap-2 mt-4 mb-4">
+        <Button
+          variant={selectedPackage === "all" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setSelectedPackage("all")}
+        >
+          Tümü ({words.length})
+        </Button>
+        {packages.map((pkg) => (
+          <div key={pkg.id} className="flex items-center gap-1">
+            <Button
+              variant={selectedPackage === pkg.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedPackage(pkg.id)}
+            >
+              {pkg.name} ({getPackageWordCount(pkg.id)})
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-7 w-7">
+                  <X className="w-3 h-3 text-destructive" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Paketi Sil</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{pkg.name}" paketini silmek istediğinize emin misiniz? 
+                    Kelimeler silinmeyecek, sadece paket bağlantısı kaldırılacak.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>İptal</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeletePackage(pkg.id, pkg.name)}>
+                    Sil
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        ))}
         
-        <div className="flex gap-2 mt-2">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
-                <Trash2 className="w-3 h-3 mr-1" />
-                Paketsiz Kelimeleri Sil
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Paketsiz Kelimeleri Sil</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Hiçbir pakete ait olmayan tüm kelimeler silinecek. Bu işlem geri alınamaz.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>İptal</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteOrphanWords}>
-                  Sil
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="outline" size="sm" className="text-destructive border-destructive hover:bg-destructive/10">
+              <Trash2 className="w-3 h-3 mr-1" />
+              Paketsiz Kelimeleri Sil
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Paketsiz Kelimeleri Sil</AlertDialogTitle>
+              <AlertDialogDescription>
+                Hiçbir pakete ait olmayan tüm kelimeler silinecek. Bu işlem geri alınamaz.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>İptal</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteOrphanWords}>
+                Sil
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
-      <ScrollArea className="h-[calc(100vh-22rem)]">
+      <ScrollArea className="h-[calc(100vh-14rem)]">
         {loadingPackageWords ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

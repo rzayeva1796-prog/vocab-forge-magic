@@ -221,7 +221,6 @@ export type Database = {
           package_id: string | null
           package_name: string | null
           star_rating: number | null
-          sub_package_id: string | null
           turkish: string
         }
         Insert: {
@@ -235,7 +234,6 @@ export type Database = {
           package_id?: string | null
           package_name?: string | null
           star_rating?: number | null
-          sub_package_id?: string | null
           turkish: string
         }
         Update: {
@@ -249,7 +247,6 @@ export type Database = {
           package_id?: string | null
           package_name?: string | null
           star_rating?: number | null
-          sub_package_id?: string | null
           turkish?: string
         }
         Relationships: [
@@ -258,13 +255,6 @@ export type Database = {
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "word_packages"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "learned_words_sub_package_id_fkey"
-            columns: ["sub_package_id"]
-            isOneToOne: false
-            referencedRelation: "sub_packages"
             referencedColumns: ["id"]
           },
         ]
@@ -608,38 +598,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sub_packages: {
-        Row: {
-          created_at: string
-          display_order: number | null
-          id: string
-          name: string
-          package_id: string
-        }
-        Insert: {
-          created_at?: string
-          display_order?: number | null
-          id?: string
-          name: string
-          package_id: string
-        }
-        Update: {
-          created_at?: string
-          display_order?: number | null
-          id?: string
-          name?: string
-          package_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "sub_packages_package_id_fkey"
-            columns: ["package_id"]
-            isOneToOne: false
-            referencedRelation: "word_packages"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       subsections: {
         Row: {
           background_url: string | null
@@ -649,7 +607,6 @@ export type Database = {
           id: string
           package_id: string | null
           section_id: string
-          selected_sub_package_id: string | null
         }
         Insert: {
           background_url?: string | null
@@ -659,7 +616,6 @@ export type Database = {
           id?: string
           package_id?: string | null
           section_id: string
-          selected_sub_package_id?: string | null
         }
         Update: {
           background_url?: string | null
@@ -669,7 +625,6 @@ export type Database = {
           id?: string
           package_id?: string | null
           section_id?: string
-          selected_sub_package_id?: string | null
         }
         Relationships: [
           {
@@ -684,13 +639,6 @@ export type Database = {
             columns: ["section_id"]
             isOneToOne: false
             referencedRelation: "sections"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subsections_selected_sub_package_id_fkey"
-            columns: ["selected_sub_package_id"]
-            isOneToOne: false
-            referencedRelation: "sub_packages"
             referencedColumns: ["id"]
           },
         ]
