@@ -14,9 +14,10 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const userId = url.searchParams.get("user_id");
-    const packageId = url.searchParams.get("package_id"); // Optional: filter by specific package
-    const additionalPackageIds = url.searchParams.get("additional_package_ids"); // Comma-separated additional package IDs
+    // Support both snake_case and camelCase parameter names for compatibility with different game apps
+    const userId = url.searchParams.get("user_id") || url.searchParams.get("userId");
+    const packageId = url.searchParams.get("package_id") || url.searchParams.get("packageId");
+    const additionalPackageIds = url.searchParams.get("additional_package_ids") || url.searchParams.get("additionalPackageIds");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
