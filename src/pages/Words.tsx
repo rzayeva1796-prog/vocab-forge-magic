@@ -346,12 +346,21 @@ const Words = () => {
         ) : (
           <div ref={scrollContainerRef} className="flex flex-col gap-6">
             {sections.map((section, sectionIdx) => {
-              // Sort by package_name numerically (1.1, 1.2, ..., 1.10)
+              // Sort by package_name numerically (1.1, 1.2, ..., 1.10), fallback to display_order
               const sectionSubs = subsections
                 .filter(sub => sub.section_id === section.id)
                 .sort((a, b) => {
                   const aName = a.package_name || '';
                   const bName = b.package_name || '';
+                  
+                  // If both have no package_name, sort by display_order
+                  if (!aName && !bName) {
+                    return (a.display_order || 0) - (b.display_order || 0);
+                  }
+                  // Items without package_name go to the end
+                  if (!aName) return 1;
+                  if (!bName) return -1;
+                  
                   const aParts = aName.split('.').map(p => parseInt(p) || 0);
                   const bParts = bName.split('.').map(p => parseInt(p) || 0);
                   for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
