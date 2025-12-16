@@ -12,6 +12,9 @@ const GameSelection = () => {
   // Get package_id and additional_package_ids from URL if coming from Words page
   const packageId = searchParams.get("package_id");
   const additionalPackageIds = searchParams.get("additional_package_ids");
+  // Get sentence game specific params
+  const sentencePackage = searchParams.get("sentence_package");
+  const sentenceRound = searchParams.get("sentence_round");
 
   const handleGameClick = (baseUrl: string) => {
     if (user) {
@@ -21,6 +24,13 @@ const GameSelection = () => {
       }
       if (additionalPackageIds) {
         url += `&additional_package_ids=${additionalPackageIds}`;
+      }
+      // Add sentence params for Cümle game
+      if (baseUrl.includes("kelime-paketi-egitici") && sentencePackage) {
+        url += `&bolum=${sentencePackage}`;
+        if (sentenceRound) {
+          url += `&tur=${sentenceRound}`;
+        }
       }
       window.location.href = url;
     } else {
