@@ -894,12 +894,12 @@ export const SubsectionCard = ({
             <p className="text-sm text-muted-foreground">
               Bu alt bölüm için varsayılan oyunu seçin. Seçim yapılmazsa oyun seçim ekranı açılır.
             </p>
-            <Select value={selectedGame} onValueChange={setSelectedGame}>
+            <Select value={selectedGame || "__none__"} onValueChange={(val) => setSelectedGame(val === "__none__" ? "" : val)}>
               <SelectTrigger>
                 <SelectValue placeholder="Oyun seçin (opsiyonel)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Seçim yok (Oyun seçim ekranı)</SelectItem>
+                <SelectItem value="__none__">Seçim yok (Oyun seçim ekranı)</SelectItem>
                 {AVAILABLE_GAMES.map((game) => (
                   <SelectItem key={game.id} value={game.url}>
                     {game.name}
