@@ -195,15 +195,27 @@ export const SubsectionCard = ({
     const additionalParam = additionalIds.length > 0 
       ? `&additional_package_ids=${additionalIds.join(',')}` 
       : '';
-    
+
     // Sentence game params
     const sentenceParams = subsection.sentence_package 
       ? `&sentence_package=${subsection.sentence_package}${subsection.sentence_round ? `&sentence_round=${subsection.sentence_round}` : ''}`
       : '';
-    
+
     // Check if there's a pre-selected game for this subsection
     const selectedGameUrl = subsection.selected_game;
-    
+
+    console.log("[SubsectionCard] click", {
+      subsectionId: subsection.id,
+      isAdmin,
+      unlocked: subsection.unlocked,
+      package_id: subsection.package_id,
+      selected_game: selectedGameUrl,
+      sentence_package: subsection.sentence_package,
+      sentence_round: subsection.sentence_round,
+      additional_package_ids: subsection.additional_package_ids,
+      userId: user?.id,
+    });
+
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
