@@ -28,6 +28,7 @@ interface Subsection {
   min_star_rating?: number;
   activated?: boolean;
   background_url?: string | null;
+  selected_game?: string | null;
 }
 
 interface WordPackage {
@@ -141,6 +142,7 @@ const Words = () => {
           min_star_rating: minStarRating,
           activated: activatedSubsectionIds.has(sub.id),
           background_url: (sub as any).background_url,
+          selected_game: (sub as any).selected_game,
         };
       });
 
