@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Zap, GitCompare, LogIn } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -81,6 +81,15 @@ const GameSelection = () => {
           >
             <GitCompare className="w-8 h-8 mr-3" />
             Eşleştirme
+          </Button>
+          
+          <Button
+            onClick={() => handleGameClick("https://kelime-paketi-egitici.lovable.app")}
+            className="w-full h-20 text-xl bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+            size="lg"
+          >
+            <MessageSquareText className="w-8 h-8 mr-3" />
+            Cümle
           </Button>
         </div>
       </div>
