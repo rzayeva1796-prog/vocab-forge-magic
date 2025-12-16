@@ -264,11 +264,16 @@ export const SubsectionCard = ({
   const handleSaveSentence = async () => {
     setSaving(true);
     try {
+      // Find Cümle game URL
+      const cumleGame = AVAILABLE_GAMES.find(g => g.id === "cumle");
+      
       const { error } = await supabase
         .from("subsections")
         .update({ 
           sentence_package: sentencePackage || null,
-          sentence_round: sentenceRound ? parseInt(sentenceRound) : null
+          sentence_round: sentenceRound ? parseInt(sentenceRound) : null,
+          // Auto-set selected_game to Cümle when sentence settings are saved
+          selected_game: sentencePackage ? cumleGame?.url || null : null
         })
         .eq("id", subsection.id);
 
