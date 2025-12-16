@@ -17,6 +17,15 @@ const GameSelection = () => {
   const sentenceRound = searchParams.get("sentence_round");
 
   const handleGameClick = (baseUrl: string) => {
+    console.log("[GameSelection] handleGameClick", {
+      baseUrl,
+      userId: user?.id,
+      packageId,
+      additionalPackageIds,
+      sentencePackage,
+      sentenceRound,
+    });
+
     if (user) {
       let url = `${baseUrl}?user_id=${user.id}`;
       if (packageId) {
