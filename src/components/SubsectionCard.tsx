@@ -667,14 +667,14 @@ export const SubsectionCard = ({
           )}
 
           {/* Game Selection Button for Admin */}
-          {isAdmin && subsection.package_id && (
+          {isAdmin && (
             <Button
               variant="outline"
               size="sm"
               className="h-6 px-2 mt-1 text-xs"
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedGame((subsection as any).selected_game || "");
+                setSelectedGame(subsection.selected_game || "");
                 setShowGameDialog(true);
               }}
             >
