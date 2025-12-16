@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil, Gamepad2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,6 +9,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { WordsPreviewModal } from "./WordsPreviewModal";
+
+// Available games list
+const AVAILABLE_GAMES = [
+  { id: "tetris", name: "Tetris", url: "https://wordfall-mix.lovable.app" },
+  { id: "kart", name: "Kart", url: "https://vocab-quest-cards.lovable.app" },
+  { id: "eslestirme", name: "Eşleştirme", url: "https://wordflow-match-up.lovable.app" },
+  { id: "cumle", name: "Cümle", url: "https://kelime-paketi-egitici.lovable.app" },
+];
 
 interface Subsection {
   id: string;
@@ -22,6 +30,7 @@ interface Subsection {
   min_star_rating?: number;
   background_url?: string | null;
   additional_package_ids?: string[];
+  selected_game?: string | null;
 }
 
 interface SubsectionCardProps {
@@ -54,7 +63,9 @@ export const SubsectionCard = ({
   const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWordsPreview, setShowWordsPreview] = useState(false);
+  const [showGameDialog, setShowGameDialog] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
+  const [selectedGame, setSelectedGame] = useState<string>((subsection as any).selected_game || "");
   const [additionalPackages, setAdditionalPackages] = useState<string[]>(
     ((subsection as any).additional_package_ids as string[]) || []
   );
@@ -180,16 +191,49 @@ export const SubsectionCard = ({
       ? `&additional_package_ids=${additionalIds.join(',')}` 
       : '';
     
+    // Check if there's a pre-selected game for this subsection
+    const selectedGameUrl = (subsection as any).selected_game;
+    
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
+      } else if (selectedGameUrl) {
+        // Navigate directly to the selected game
+        const gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam.replace('&', '&')}`;
+        window.location.href = gameUrl;
       } else {
         navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
+        if (selectedGameUrl) {
+          // Navigate directly to the selected game
+          const gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam.replace('&', '&')}`;
+          window.location.href = gameUrl;
+        } else {
+          navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
+        }
       }
+    }
+  };
+  
+  const handleSaveGame = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("subsections")
+        .update({ selected_game: selectedGame || null })
+        .eq("id", subsection.id);
+
+      if (error) throw error;
+      toast.success("Oyun seçimi kaydedildi");
+      setShowGameDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error saving game:", error);
+      toast.error("Oyun seçimi kaydedilemedi");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -621,6 +665,23 @@ export const SubsectionCard = ({
               Arka Plan
             </Button>
           )}
+
+          {/* Game Selection Button for Admin */}
+          {isAdmin && subsection.package_id && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 mt-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedGame((subsection as any).selected_game || "");
+                setShowGameDialog(true);
+              }}
+            >
+              <Gamepad2 className="w-3 h-3 mr-1" />
+              Oyun Seç
+            </Button>
+          )}
           
           {isAdmin && (
             <Button
@@ -819,6 +880,36 @@ export const SubsectionCard = ({
                 {deleting ? "Siliniyor..." : "Sil"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Game Selection Dialog */}
+      <Dialog open={showGameDialog} onOpenChange={setShowGameDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Oyun Seç</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Bu alt bölüm için varsayılan oyunu seçin. Seçim yapılmazsa oyun seçim ekranı açılır.
+            </p>
+            <Select value={selectedGame} onValueChange={setSelectedGame}>
+              <SelectTrigger>
+                <SelectValue placeholder="Oyun seçin (opsiyonel)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Seçim yok (Oyun seçim ekranı)</SelectItem>
+                {AVAILABLE_GAMES.map((game) => (
+                  <SelectItem key={game.id} value={game.url}>
+                    {game.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSaveGame} disabled={saving} className="w-full">
+              {saving ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

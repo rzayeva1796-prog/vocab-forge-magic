@@ -651,6 +651,7 @@ export type Database = {
           name: string | null
           package_id: string | null
           section_id: string
+          selected_game: string | null
           selected_sub_package_id: string | null
         }
         Insert: {
@@ -663,6 +664,7 @@ export type Database = {
           name?: string | null
           package_id?: string | null
           section_id: string
+          selected_game?: string | null
           selected_sub_package_id?: string | null
         }
         Update: {
@@ -675,6 +677,7 @@ export type Database = {
           name?: string | null
           package_id?: string | null
           section_id?: string
+          selected_game?: string | null
           selected_sub_package_id?: string | null
         }
         Relationships: [
