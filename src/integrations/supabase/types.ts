@@ -653,6 +653,8 @@ export type Database = {
           section_id: string
           selected_game: string | null
           selected_sub_package_id: string | null
+          sentence_package: string | null
+          sentence_round: number | null
         }
         Insert: {
           additional_package_ids?: string[] | null
@@ -666,6 +668,8 @@ export type Database = {
           section_id: string
           selected_game?: string | null
           selected_sub_package_id?: string | null
+          sentence_package?: string | null
+          sentence_round?: number | null
         }
         Update: {
           additional_package_ids?: string[] | null
@@ -679,6 +683,8 @@ export type Database = {
           section_id?: string
           selected_game?: string | null
           selected_sub_package_id?: string | null
+          sentence_package?: string | null
+          sentence_round?: number | null
         }
         Relationships: [
           {

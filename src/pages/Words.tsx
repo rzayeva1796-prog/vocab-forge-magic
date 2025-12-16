@@ -29,6 +29,8 @@ interface Subsection {
   activated?: boolean;
   background_url?: string | null;
   selected_game?: string | null;
+  sentence_package?: string | null;
+  sentence_round?: number | null;
 }
 
 interface WordPackage {

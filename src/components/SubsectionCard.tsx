@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil, Gamepad2 } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil, Gamepad2, MessageSquareText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +31,8 @@ interface Subsection {
   background_url?: string | null;
   additional_package_ids?: string[];
   selected_game?: string | null;
+  sentence_package?: string | null;
+  sentence_round?: number | null;
 }
 
 interface SubsectionCardProps {
@@ -64,8 +66,11 @@ export const SubsectionCard = ({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWordsPreview, setShowWordsPreview] = useState(false);
   const [showGameDialog, setShowGameDialog] = useState(false);
+  const [showSentenceDialog, setShowSentenceDialog] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
   const [selectedGame, setSelectedGame] = useState<string>((subsection as any).selected_game || "");
+  const [sentencePackage, setSentencePackage] = useState<string>(subsection.sentence_package || "");
+  const [sentenceRound, setSentenceRound] = useState<string>(subsection.sentence_round?.toString() || "");
   const [additionalPackages, setAdditionalPackages] = useState<string[]>(
     ((subsection as any).additional_package_ids as string[]) || []
   );
@@ -191,27 +196,46 @@ export const SubsectionCard = ({
       ? `&additional_package_ids=${additionalIds.join(',')}` 
       : '';
     
+    // Sentence game params
+    const sentenceParams = subsection.sentence_package 
+      ? `&sentence_package=${subsection.sentence_package}${subsection.sentence_round ? `&sentence_round=${subsection.sentence_round}` : ''}`
+      : '';
+    
     // Check if there's a pre-selected game for this subsection
-    const selectedGameUrl = (subsection as any).selected_game;
+    const selectedGameUrl = subsection.selected_game;
     
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
       } else if (selectedGameUrl) {
         // Navigate directly to the selected game
-        const gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam.replace('&', '&')}`;
+        let gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam}`;
+        // Add sentence params for Cümle game
+        if (selectedGameUrl.includes("kelime-paketi-egitici") && subsection.sentence_package) {
+          gameUrl += `&bolum=${subsection.sentence_package}`;
+          if (subsection.sentence_round) {
+            gameUrl += `&tur=${subsection.sentence_round}`;
+          }
+        }
         window.location.href = gameUrl;
       } else {
-        navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
+        navigate(`/game?package_id=${subsection.package_id}${additionalParam}${sentenceParams}`);
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
         if (selectedGameUrl) {
           // Navigate directly to the selected game
-          const gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam.replace('&', '&')}`;
+          let gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam}`;
+          // Add sentence params for Cümle game
+          if (selectedGameUrl.includes("kelime-paketi-egitici") && subsection.sentence_package) {
+            gameUrl += `&bolum=${subsection.sentence_package}`;
+            if (subsection.sentence_round) {
+              gameUrl += `&tur=${subsection.sentence_round}`;
+            }
+          }
           window.location.href = gameUrl;
         } else {
-          navigate(`/game?package_id=${subsection.package_id}${additionalParam}`);
+          navigate(`/game?package_id=${subsection.package_id}${additionalParam}${sentenceParams}`);
         }
       }
     }
@@ -232,6 +256,29 @@ export const SubsectionCard = ({
     } catch (error) {
       console.error("Error saving game:", error);
       toast.error("Oyun seçimi kaydedilemedi");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveSentence = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("subsections")
+        .update({ 
+          sentence_package: sentencePackage || null,
+          sentence_round: sentenceRound ? parseInt(sentenceRound) : null
+        })
+        .eq("id", subsection.id);
+
+      if (error) throw error;
+      toast.success("Cümle ayarları kaydedildi");
+      setShowSentenceDialog(false);
+      onUpdate();
+    } catch (error) {
+      console.error("Error saving sentence settings:", error);
+      toast.error("Cümle ayarları kaydedilemedi");
     } finally {
       setSaving(false);
     }
@@ -682,6 +729,24 @@ export const SubsectionCard = ({
               Oyun Seç
             </Button>
           )}
+
+          {/* Sentence Settings Button for Admin */}
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 mt-1 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSentencePackage(subsection.sentence_package || "");
+                setSentenceRound(subsection.sentence_round?.toString() || "");
+                setShowSentenceDialog(true);
+              }}
+            >
+              <MessageSquareText className="w-3 h-3 mr-1" />
+              Cümle
+            </Button>
+          )}
           
           {isAdmin && (
             <Button
@@ -908,6 +973,49 @@ export const SubsectionCard = ({
               </SelectContent>
             </Select>
             <Button onClick={handleSaveGame} disabled={saving} className="w-full">
+              {saving ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sentence Settings Dialog */}
+      <Dialog open={showSentenceDialog} onOpenChange={setShowSentenceDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cümle Oyunu Ayarları</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Bu alt bölüm için cümle oyununda açılacak bölüm ve turu seçin.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Bölüm (örn: 1.1)</label>
+              <input
+                type="text"
+                value={sentencePackage}
+                onChange={(e) => setSentencePackage(e.target.value)}
+                placeholder="Bölüm numarası (örn: 1.1, 2.3)"
+                className="w-full p-2 border rounded-md bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tur</label>
+              <Select value={sentenceRound || "__none__"} onValueChange={(val) => setSentenceRound(val === "__none__" ? "" : val)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Tur seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Seçim yok</SelectItem>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((round) => (
+                    <SelectItem key={round} value={round.toString()}>
+                      {round}. Tur
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSaveSentence} disabled={saving} className="w-full">
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </div>
