@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      books: {
+        Row: {
+          category: string | null
+          cover_url: string | null
+          created_at: string
+          display_order: number | null
+          file_type: string | null
+          file_url: string | null
+          id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          cover_url?: string | null
+          created_at?: string
+          display_order?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          cover_url?: string | null
+          created_at?: string
+          display_order?: number | null
+          file_type?: string | null
+          file_url?: string | null
+          id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       episodes: {
         Row: {
           created_at: string
