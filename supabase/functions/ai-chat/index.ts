@@ -22,9 +22,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { message, userId, conversationHistory, turkishMode = false } = await req.json();
+    const { message, userId, conversationHistory, turkishMode = false, botName = 'Word Buddy', botPersonality = 'Friendly tutor' } = await req.json();
 
-    console.log('Chat request received:', { userId, messageLength: message?.length, turkishMode });
+    console.log('Chat request received:', { userId, messageLength: message?.length, turkishMode, botName });
 
     // Kullanıcının kelime ilerlemesini ve yıldızlarını getir
     let userContext = '';
@@ -112,7 +112,7 @@ IMPORTANT:
     let systemPrompt: string;
     
     if (turkishMode) {
-      systemPrompt = `Sen Türkçe konuşan yardımcı bir asistansın. Adın "Kelime Dostum".
+      systemPrompt = `Sen Türkçe konuşan yardımcı bir asistansın. Adın "${botName}".
 
 ${userContext}
 
@@ -123,7 +123,8 @@ KURALLAR:
 4. Kısa ve öz cevaplar ver (maksimum 3-4 cümle)
 5. Kullanıcının sorularına Türkçe cevap ver`;
     } else {
-      systemPrompt = `You are an English conversation partner for a Turkish learner. Your name is "Word Buddy".
+      systemPrompt = `You are ${botName}, an English conversation partner for a Turkish learner. 
+Your personality: ${botPersonality}. Stay in character and be consistent with your personality.
 
 ${userContext}
 
