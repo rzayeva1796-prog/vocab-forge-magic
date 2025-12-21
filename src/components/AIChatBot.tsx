@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, Send, X, Bot, User, Loader2 } from "lucide-react";
+import { MessageCircle, Send, X, Bot, User, Loader2, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { useTextToSpeech } from "@/hooks/useTextToSpeech";
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,8 +21,12 @@ export function AIChatBot() {
   const [isLoading, setIsLoading] = useState(false);
   const [userLevel, setUserLevel] = useState<string>('');
   const [wordCount, setWordCount] = useState<number>(0);
+  const [autoSpeak, setAutoSpeak] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  
+  const { isListening, transcript, startListening, stopListening, isSupported: sttSupported } = useSpeechRecognition();
+  const { isSpeaking, speak, stop, isSupported: ttsSupported } = useTextToSpeech();
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -28,22 +34,33 @@ export function AIChatBot() {
     }
   }, [messages]);
 
+  // Ses tanıma bittiğinde input'a yaz
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript);
+    }
+  }, [transcript]);
+
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      // Hoş geldin mesajı
+      const welcomeMessage = 'Merhaba! 👋 Ben Kelime Dostum. İngilizce öğrenme yolculuğunda sana yardımcı olmak için buradayım. Benimle istediğin konuda sohbet edebilir, yeni kelimeler öğrenebilir veya pratik yapabilirsin. Nasıl yardımcı olabilirim?';
       setMessages([{
         role: 'assistant',
-        content: 'Merhaba! 👋 Ben Kelime Dostum. İngilizce öğrenme yolculuğunda sana yardımcı olmak için buradayım. Benimle istediğin konuda sohbet edebilir, yeni kelimeler öğrenebilir veya pratik yapabilirsin. Nasıl yardımcı olabilirim?'
+        content: welcomeMessage
       }]);
+      
+      if (autoSpeak && ttsSupported) {
+        speak(welcomeMessage);
+      }
     }
   }, [isOpen]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (messageText?: string) => {
+    const textToSend = messageText || input.trim();
+    if (!textToSend || isLoading) return;
 
-    const userMessage = input.trim();
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setMessages(prev => [...prev, { role: 'user', content: textToSend }]);
     setIsLoading(true);
 
     try {
@@ -54,7 +71,7 @@ export function AIChatBot() {
 
       const { data, error } = await supabase.functions.invoke('ai-chat', {
         body: {
-          message: userMessage,
+          message: textToSend,
           userId: user?.id,
           conversationHistory
         }
@@ -68,11 +85,17 @@ export function AIChatBot() {
         throw new Error(data.error);
       }
 
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      const reply = data.reply;
+      setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
       
       if (data.level) {
         setUserLevel(data.level);
         setWordCount(data.wordCount);
+      }
+
+      // Otomatik sesli okuma
+      if (autoSpeak && ttsSupported) {
+        speak(reply);
       }
 
     } catch (error) {
@@ -91,6 +114,22 @@ export function AIChatBot() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const toggleListening = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  const speakMessage = (text: string) => {
+    if (isSpeaking) {
+      stop();
+    } else {
+      speak(text);
     }
   };
 
@@ -121,14 +160,30 @@ export function AIChatBot() {
             )}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsOpen(false)}
-          className="text-primary-foreground hover:bg-primary-foreground/20"
-        >
-          <X className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {ttsSupported && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setAutoSpeak(!autoSpeak)}
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+              title={autoSpeak ? "Otomatik okuma açık" : "Otomatik okuma kapalı"}
+            >
+              {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              stop();
+              setIsOpen(false);
+            }}
+            className="text-primary-foreground hover:bg-primary-foreground/20"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -144,14 +199,27 @@ export function AIChatBot() {
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
               )}
-              <div
-                className={`max-w-[80%] p-3 rounded-2xl ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground rounded-br-md'
-                    : 'bg-muted rounded-bl-md'
-                }`}
-              >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              <div className="flex flex-col gap-1 max-w-[80%]">
+                <div
+                  className={`p-3 rounded-2xl ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground rounded-br-md'
+                      : 'bg-muted rounded-bl-md'
+                  }`}
+                >
+                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                </div>
+                {message.role === 'assistant' && ttsSupported && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => speakMessage(message.content)}
+                    className="self-start h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {isSpeaking ? <VolumeX className="h-3 w-3 mr-1" /> : <Volume2 className="h-3 w-3 mr-1" />}
+                    {isSpeaking ? 'Durdur' : 'Dinle'}
+                  </Button>
+                )}
               </div>
               {message.role === 'user' && (
                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
@@ -175,17 +243,34 @@ export function AIChatBot() {
 
       {/* Input */}
       <div className="p-4 border-t border-border">
+        {isListening && (
+          <div className="mb-2 flex items-center gap-2 text-sm text-primary">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            Dinleniyor... Konuşmayı bitirince durdurun.
+          </div>
+        )}
         <div className="flex gap-2">
+          {sttSupported && (
+            <Button
+              onClick={toggleListening}
+              variant={isListening ? "destructive" : "outline"}
+              size="icon"
+              disabled={isLoading}
+              className="flex-shrink-0"
+            >
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </Button>
+          )}
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Mesajınızı yazın..."
+            placeholder={isListening ? "Konuşun..." : "Mesajınızı yazın..."}
             disabled={isLoading}
             className="flex-1"
           />
           <Button
-            onClick={sendMessage}
+            onClick={() => sendMessage()}
             disabled={!input.trim() || isLoading}
             size="icon"
           >
