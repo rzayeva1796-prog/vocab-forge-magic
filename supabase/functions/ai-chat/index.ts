@@ -22,9 +22,9 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { message, userId, conversationHistory } = await req.json();
+    const { message, userId, conversationHistory, turkishMode = false } = await req.json();
 
-    console.log('Chat request received:', { userId, messageLength: message?.length });
+    console.log('Chat request received:', { userId, messageLength: message?.length, turkishMode });
 
     // Kullanıcının kelime ilerlemesini ve yıldızlarını getir
     let userContext = '';
@@ -69,7 +69,7 @@ serve(async (req) => {
         .eq('user_id', userId)
         .single();
 
-      const userName = profile?.display_name || 'Kullanıcı';
+      const userName = profile?.display_name || 'User';
 
       // Kelimeleri yıldız sayısına göre grupla
       const fiveStarWords = wordDetails.filter(w => w.stars === 5);
@@ -77,50 +77,79 @@ serve(async (req) => {
       const threeStarWords = wordDetails.filter(w => w.stars === 3);
       const lowStarWords = wordDetails.filter(w => w.stars < 3);
 
-      const level = wordCount < 50 ? 'Başlangıç' : wordCount < 200 ? 'Temel' : wordCount < 500 ? 'Orta' : wordCount < 1000 ? 'İleri' : 'İleri Düzey';
+      const level = wordCount < 50 ? 'Beginner' : wordCount < 200 ? 'Elementary' : wordCount < 500 ? 'Intermediate' : wordCount < 1000 ? 'Advanced' : 'Expert';
 
-      userContext = `
+      if (turkishMode) {
+        userContext = `
 KULLANICI BİLGİLERİ:
 - İsim: ${userName}
 - Toplam öğrenilen kelime sayısı: ${wordCount}
 - Seviye: ${level}
-
-KELİME DURUMU (Yıldız sayısına göre):
-${fiveStarWords.length > 0 ? `- 5 Yıldız (Mükemmel biliyor - ${fiveStarWords.length} kelime): ${fiveStarWords.slice(0, 30).map(w => `${w.english} (${w.turkish})`).join(', ')}${fiveStarWords.length > 30 ? '...' : ''}` : ''}
-${fourStarWords.length > 0 ? `- 4 Yıldız (İyi biliyor - ${fourStarWords.length} kelime): ${fourStarWords.slice(0, 20).map(w => `${w.english} (${w.turkish})`).join(', ')}${fourStarWords.length > 20 ? '...' : ''}` : ''}
-${threeStarWords.length > 0 ? `- 3 Yıldız (Orta düzey - ${threeStarWords.length} kelime): ${threeStarWords.slice(0, 20).map(w => `${w.english} (${w.turkish})`).join(', ')}${threeStarWords.length > 20 ? '...' : ''}` : ''}
-${lowStarWords.length > 0 ? `- 1-2 Yıldız (Pratik gerekli - ${lowStarWords.length} kelime): ${lowStarWords.slice(0, 20).map(w => `${w.english} (${w.turkish})`).join(', ')}${lowStarWords.length > 20 ? '...' : ''}` : ''}
-
-ÖNEMLİ:
-- 5 yıldızlı kelimeleri rahatça kullanabilirsin, kullanıcı bunları iyi biliyor
-- 1-2 yıldızlı kelimeleri pratik ettirmeye çalış, kullanıcının bunlara ihtiyacı var
-- Yeni kelimeler öğretirken kullanıcının seviyesine uygun olanları seç
 `;
+      } else {
+        userContext = `
+USER INFORMATION:
+- Name: ${userName}
+- Total learned words: ${wordCount}
+- Level: ${level}
+
+VOCABULARY KNOWLEDGE (by star rating):
+${fiveStarWords.length > 0 ? `- 5 Stars (Mastered - ${fiveStarWords.length} words): ${fiveStarWords.slice(0, 30).map(w => w.english).join(', ')}${fiveStarWords.length > 30 ? '...' : ''}` : ''}
+${fourStarWords.length > 0 ? `- 4 Stars (Good - ${fourStarWords.length} words): ${fourStarWords.slice(0, 20).map(w => w.english).join(', ')}${fourStarWords.length > 20 ? '...' : ''}` : ''}
+${threeStarWords.length > 0 ? `- 3 Stars (Learning - ${threeStarWords.length} words): ${threeStarWords.slice(0, 20).map(w => w.english).join(', ')}${threeStarWords.length > 20 ? '...' : ''}` : ''}
+${lowStarWords.length > 0 ? `- 1-2 Stars (Need practice - ${lowStarWords.length} words): ${lowStarWords.slice(0, 20).map(w => w.english).join(', ')}${lowStarWords.length > 20 ? '...' : ''}` : ''}
+
+IMPORTANT:
+- Use 5-star words freely in your sentences, user knows them well
+- Try to practice 1-2 star words, user needs more exposure
+- When introducing new words, choose ones appropriate for user's level
+- CRITICAL: Build sentences using ONLY words from the user's known vocabulary when possible
+`;
+      }
     }
 
     // Sistem promptu
-    const systemPrompt = `Sen Türkçe konuşan ve İngilizce öğreten yardımcı bir asistansın. Adın "Kelime Dostum".
+    let systemPrompt: string;
+    
+    if (turkishMode) {
+      systemPrompt = `Sen Türkçe konuşan yardımcı bir asistansın. Adın "Kelime Dostum".
 
 ${userContext}
 
-ÖNEMLİ KURALLAR:
-1. Türkçe konuş ama İngilizce öğretmeye odaklan
-2. Kullanıcının bildiği kelime sayısına göre cümlelerini ayarla:
-   - 0-50 kelime: Çok basit, kısa cümleler. Temel kelimeler kullan.
-   - 50-200 kelime: Basit cümleler. Yaygın kelimeler kullan.
-   - 200-500 kelime: Orta düzey cümleler. Daha çeşitli kelimeler kullan.
-   - 500+ kelime: Karmaşık cümleler kullanabilirsin.
+KURALLAR:
+1. Sadece Türkçe konuş
+2. İngilizce öğretme, sadece Türkçe sohbet et
+3. Samimi ve yardımcı ol
+4. Kısa ve öz cevaplar ver (maksimum 3-4 cümle)
+5. Kullanıcının sorularına Türkçe cevap ver`;
+    } else {
+      systemPrompt = `You are an English conversation partner for a Turkish learner. Your name is "Word Buddy".
 
-3. İngilizce kelimeler kullandığında Türkçe karşılığını parantez içinde ver
-4. Kullanıcının 5 yıldızlı kelimelerini cümlelerinde kullanmaya özen göster
-5. 1-2 yıldızlı kelimeleri pratik ettirmeye çalış - bunları sohbette kullan
-6. Samimi ve motive edici ol
-7. Kısa ve öz cevaplar ver, çok uzun yazma (maksimum 3-4 cümle)
-8. Eğer kullanıcı İngilizce pratik yapmak isterse, onunla basit İngilizce diyaloglar kur
+${userContext}
 
-Örnek yaklaşımlar:
-- Başlangıç seviyesi için: "Hello! (Merhaba) How are you? (Nasılsın?) gibi basit ifadeler öğrenelim."
-- İleri seviye için: "Today let's practice some advanced vocabulary and complex sentence structures."`;
+CRITICAL RULES FOR ENGLISH PRACTICE:
+1. SPEAK ONLY IN ENGLISH - Never use Turkish unless user explicitly asks for translation
+2. Adjust your sentence complexity based on user's word count:
+   - 0-50 words: Use VERY simple sentences. Only basic words like: hello, good, yes, no, thank you, please, I, you, is, are, have, want, like, go, eat, drink, sleep, work, play, happy, sad, big, small, hot, cold, etc.
+   - 50-200 words: Use simple sentences with common everyday words
+   - 200-500 words: Use intermediate sentences with more varied vocabulary
+   - 500+ words: Use complex sentences with advanced vocabulary
+
+3. BUILD SENTENCES USING THE USER'S KNOWN VOCABULARY:
+   - Prioritize using words from the 5-star list (user knows these well)
+   - Naturally include 1-2 star words to help user practice
+   - When you must use a new word, immediately provide the Turkish translation in parentheses
+
+4. Keep responses SHORT (2-3 sentences max)
+5. Be encouraging and supportive
+6. Ask simple follow-up questions to keep conversation going
+7. If user makes grammar mistakes, gently correct them
+
+EXAMPLE RESPONSES:
+For beginner (0-50 words): "Hello! How are you today? I am happy to see you."
+For elementary (50-200): "That sounds interesting! What do you like to do on weekends?"
+For intermediate (200-500): "I understand your perspective. Could you elaborate on that point?"`;
+    }
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -139,7 +168,7 @@ ${userContext}
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages,
-        max_tokens: 500,
+        max_tokens: 300,
       }),
     });
 
@@ -149,7 +178,7 @@ ${userContext}
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ 
-          error: 'Çok fazla istek gönderildi. Lütfen biraz bekleyin.' 
+          error: 'Too many requests. Please wait a moment.' 
         }), {
           status: 429,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -158,7 +187,7 @@ ${userContext}
       
       if (response.status === 402) {
         return new Response(JSON.stringify({ 
-          error: 'API kredisi doldu. Lütfen yöneticiyle iletişime geçin.' 
+          error: 'API credits exhausted. Please contact administrator.' 
         }), {
           status: 402,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -169,11 +198,11 @@ ${userContext}
     }
 
     const data = await response.json();
-    const reply = data.choices[0]?.message?.content || 'Üzgünüm, bir yanıt oluşturamadım.';
+    const reply = data.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
 
     console.log('Response generated successfully, word count:', wordCount);
 
-    const level = wordCount < 50 ? 'Başlangıç' : wordCount < 200 ? 'Temel' : wordCount < 500 ? 'Orta' : wordCount < 1000 ? 'İleri' : 'İleri Düzey';
+    const level = wordCount < 50 ? 'Beginner' : wordCount < 200 ? 'Elementary' : wordCount < 500 ? 'Intermediate' : wordCount < 1000 ? 'Advanced' : 'Expert';
 
     return new Response(JSON.stringify({ 
       reply,
@@ -186,7 +215,7 @@ ${userContext}
   } catch (error) {
     console.error('Error in ai-chat function:', error);
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Bilinmeyen hata' 
+      error: error instanceof Error ? error.message : 'Unknown error' 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -12,80 +12,66 @@ serve(async (req) => {
   }
 
   try {
-    const { text, language = "tr" } = await req.json();
+    const { text, voice = "Fritz-PlayAI" } = await req.json();
 
     if (!text) {
       throw new Error("Text is required");
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
+    if (!GROQ_API_KEY) {
+      console.error("GROQ_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ useWebSpeech: true, text }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    console.log(`TTS request for text: "${text.substring(0, 50)}..." in language: ${language}`);
+    console.log(`TTS request for text: "${text.substring(0, 50)}..." with voice: ${voice}`);
 
-    // Lovable AI ile ses üretimi (Gemini modeli)
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Groq TTS API call
+    const response = await fetch("https://api.groq.com/openai/v1/audio/speech", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: "You are a text-to-speech assistant. Your task is to read the given text naturally. Just acknowledge that you would read it."
-          },
-          {
-            role: "user",
-            content: `Please read this text: "${text}"`
-          }
-        ],
-        max_tokens: 100,
+        model: "playai-tts",
+        voice: voice,
+        input: text,
+        response_format: "mp3",
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
-      
-      // Fallback to Web Speech API
+      console.error("Groq TTS error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ 
-          text: text,
-          language: language,
-          useWebSpeech: true 
-        }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        JSON.stringify({ useWebSpeech: true, text }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Lovable AI TTS henüz ses döndürmediği için Web Speech API kullan
+    // Get audio as ArrayBuffer and convert to base64
+    const audioBuffer = await response.arrayBuffer();
+    const base64Audio = base64Encode(audioBuffer);
+
+    console.log("TTS audio generated successfully, size:", audioBuffer.byteLength);
+
     return new Response(
-      JSON.stringify({ 
-        text: text,
-        language: language,
-        useWebSpeech: true 
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ audioContent: base64Audio }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("TTS error:", error);
     return new Response(
       JSON.stringify({ 
-        text: "",
         useWebSpeech: true,
         error: error instanceof Error ? error.message : "Unknown error" 
       }),
       {
-        status: 200, // Return 200 to allow fallback
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );

@@ -38,8 +38,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     // Sürekli dinleme modu - otomatik kapanmayı engeller
     recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'tr-TR';
-    // Daha uzun ses tanıma süresi
+    recognitionRef.current.lang = 'en-US'; // İngilizce konuşma için
     recognitionRef.current.maxAlternatives = 1;
 
     recognitionRef.current.onresult = (event) => {
