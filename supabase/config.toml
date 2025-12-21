@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.reset-daily-xp]
 verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false
