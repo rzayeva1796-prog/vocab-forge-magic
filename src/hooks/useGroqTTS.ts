@@ -7,6 +7,17 @@ interface UseGroqTTSReturn {
   stop: () => void;
 }
 
+function pickBrowserVoiceId(voiceKey: string, voices: SpeechSynthesisVoice[]) {
+  const english = voices.filter((v) => (v.lang || '').toLowerCase().startsWith('en'));
+  const list = english.length ? english : voices;
+  if (!list.length) return null;
+
+  // stable hash from voiceKey -> pick different browser voice per bot
+  let hash = 0;
+  for (let i = 0; i < voiceKey.length; i++) hash = (hash * 31 + voiceKey.charCodeAt(i)) >>> 0;
+  return list[hash % list.length] ?? list[0];
+}
+
 export function useGroqTTS(): UseGroqTTSReturn {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -23,7 +34,6 @@ export function useGroqTTS(): UseGroqTTSReturn {
   const speak = useCallback(async (text: string, voice: string = 'Fritz-PlayAI') => {
     if (!text) return;
 
-    // Stop any current playback
     stop();
 
     try {
@@ -39,12 +49,24 @@ export function useGroqTTS(): UseGroqTTSReturn {
         return;
       }
 
-      if (data.useWebSpeech) {
-        // Fallback to Web Speech API
+      // If backend asks to use Web Speech, still differentiate voices per bot.
+      if (data?.useWebSpeech) {
         if ('speechSynthesis' in window) {
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = 'en-US';
           utterance.rate = 0.9;
+
+          const applyVoice = () => {
+            const chosen = pickBrowserVoiceId(voice, window.speechSynthesis.getVoices());
+            if (chosen) utterance.voice = chosen;
+          };
+
+          // Some browsers load voices async
+          applyVoice();
+          if (!window.speechSynthesis.getVoices().length) {
+            window.speechSynthesis.onvoiceschanged = () => applyVoice();
+          }
+
           utterance.onend = () => setIsSpeaking(false);
           utterance.onerror = () => setIsSpeaking(false);
           window.speechSynthesis.speak(utterance);
@@ -54,17 +76,16 @@ export function useGroqTTS(): UseGroqTTSReturn {
         return;
       }
 
-      if (data.audioContent) {
-        // Play base64 audio using data URI
+      if (data?.audioContent) {
         const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
         const audio = new Audio(audioUrl);
         audioRef.current = audio;
-        
+
         audio.onended = () => {
           setIsSpeaking(false);
           audioRef.current = null;
         };
-        
+
         audio.onerror = (e) => {
           console.error('Audio playback error:', e);
           setIsSpeaking(false);
@@ -87,3 +108,4 @@ export function useGroqTTS(): UseGroqTTSReturn {
     stop,
   };
 }
+
