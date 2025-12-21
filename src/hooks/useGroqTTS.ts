@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useCallback, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UseGroqTTSReturn {
   isSpeaking: boolean;
@@ -7,15 +7,37 @@ interface UseGroqTTSReturn {
   stop: () => void;
 }
 
-function pickBrowserVoiceId(voiceKey: string, voices: SpeechSynthesisVoice[]) {
-  const english = voices.filter((v) => (v.lang || '').toLowerCase().startsWith('en'));
+function hash32(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function pickBrowserVoice(voiceKey: string, voices: SpeechSynthesisVoice[]) {
+  const english = voices.filter((v) => (v.lang || "").toLowerCase().startsWith("en"));
   const list = english.length ? english : voices;
   if (!list.length) return null;
+  const h = hash32(voiceKey);
+  return list[h % list.length] ?? list[0];
+}
 
-  // stable hash from voiceKey -> pick different browser voice per bot
-  let hash = 0;
-  for (let i = 0; i < voiceKey.length; i++) hash = (hash * 31 + voiceKey.charCodeAt(i)) >>> 0;
-  return list[hash % list.length] ?? list[0];
+function pickProsody(voiceKey: string) {
+  // Make bots sound different even if the device has only 1 voice installed.
+  const h = hash32(voiceKey);
+  const rate = 0.95 + ((h % 13) - 6) * 0.03; // ~0.77..1.13
+  const pitch = 1.0 + (((h >>> 8) % 17) - 8) * 0.04; // ~0.68..1.32
+  const volume = 1.0;
+  return {
+    rate: Math.min(1.15, Math.max(0.8, rate)),
+    pitch: Math.min(1.25, Math.max(0.75, pitch)),
+    volume,
+  };
+}
+
+function pickEnglishLocale(voiceKey: string) {
+  const locales = ["en-US", "en-GB", "en-AU", "en-CA", "en-IE"] as const;
+  const h = hash32(voiceKey);
+  return locales[h % locales.length];
 }
 
 export function useGroqTTS(): UseGroqTTSReturn {
@@ -31,76 +53,81 @@ export function useGroqTTS(): UseGroqTTSReturn {
     setIsSpeaking(false);
   }, []);
 
-  const speak = useCallback(async (text: string, voice: string = 'Fritz-PlayAI') => {
-    if (!text) return;
+  const speak = useCallback(
+    async (text: string, voice: string = "Fritz-PlayAI") => {
+      if (!text) return;
 
-    stop();
+      stop();
 
-    try {
-      setIsSpeaking(true);
+      try {
+        setIsSpeaking(true);
 
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text, voice }
-      });
+        const { data, error } = await supabase.functions.invoke("text-to-speech", {
+          body: { text, voice },
+        });
 
-      if (error) {
-        console.error('TTS error:', error);
-        setIsSpeaking(false);
-        return;
-      }
+        if (error) {
+          console.error("TTS error:", error);
+          setIsSpeaking(false);
+          return;
+        }
 
-      // If backend asks to use Web Speech, still differentiate voices per bot.
-      if (data?.useWebSpeech) {
-        if ('speechSynthesis' in window) {
-          const utterance = new SpeechSynthesisUtterance(text);
-          utterance.lang = 'en-US';
-          utterance.rate = 0.9;
+        if (data?.useWebSpeech) {
+          if ("speechSynthesis" in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = pickEnglishLocale(voice);
 
-          const applyVoice = () => {
-            const chosen = pickBrowserVoiceId(voice, window.speechSynthesis.getVoices());
-            if (chosen) utterance.voice = chosen;
+            const { rate, pitch, volume } = pickProsody(voice);
+            utterance.rate = rate;
+            utterance.pitch = pitch;
+            utterance.volume = volume;
+
+            const applyVoice = () => {
+              const chosen = pickBrowserVoice(voice, window.speechSynthesis.getVoices());
+              if (chosen) utterance.voice = chosen;
+            };
+
+            applyVoice();
+            if (!window.speechSynthesis.getVoices().length) {
+              window.speechSynthesis.onvoiceschanged = () => applyVoice();
+            }
+
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = () => setIsSpeaking(false);
+            window.speechSynthesis.speak(utterance);
+          } else {
+            setIsSpeaking(false);
+          }
+          return;
+        }
+
+        if (data?.audioContent) {
+          const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
+          const audio = new Audio(audioUrl);
+          audioRef.current = audio;
+
+          audio.onended = () => {
+            setIsSpeaking(false);
+            audioRef.current = null;
           };
 
-          // Some browsers load voices async
-          applyVoice();
-          if (!window.speechSynthesis.getVoices().length) {
-            window.speechSynthesis.onvoiceschanged = () => applyVoice();
-          }
+          audio.onerror = (e) => {
+            console.error("Audio playback error:", e);
+            setIsSpeaking(false);
+            audioRef.current = null;
+          };
 
-          utterance.onend = () => setIsSpeaking(false);
-          utterance.onerror = () => setIsSpeaking(false);
-          window.speechSynthesis.speak(utterance);
+          await audio.play();
         } else {
           setIsSpeaking(false);
         }
-        return;
-      }
-
-      if (data?.audioContent) {
-        const audioUrl = `data:audio/mpeg;base64,${data.audioContent}`;
-        const audio = new Audio(audioUrl);
-        audioRef.current = audio;
-
-        audio.onended = () => {
-          setIsSpeaking(false);
-          audioRef.current = null;
-        };
-
-        audio.onerror = (e) => {
-          console.error('Audio playback error:', e);
-          setIsSpeaking(false);
-          audioRef.current = null;
-        };
-
-        await audio.play();
-      } else {
+      } catch (error) {
+        console.error("TTS error:", error);
         setIsSpeaking(false);
       }
-    } catch (error) {
-      console.error('TTS error:', error);
-      setIsSpeaking(false);
-    }
-  }, [stop]);
+    },
+    [stop]
+  );
 
   return {
     isSpeaking,
