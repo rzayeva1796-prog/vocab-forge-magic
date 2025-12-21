@@ -25,7 +25,7 @@ export function AIChatBot() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   
-  const { isListening, transcript, startListening, stopListening, isSupported: sttSupported } = useSpeechRecognition();
+  const { isListening, transcript, interimTranscript, startListening, stopListening, isSupported: sttSupported } = useSpeechRecognition();
   const { isSpeaking, speak, stop, isSupported: ttsSupported } = useTextToSpeech();
 
   useEffect(() => {
@@ -34,12 +34,14 @@ export function AIChatBot() {
     }
   }, [messages]);
 
-  // Ses tanıma bittiğinde input'a yaz
+  // Ses tanıma - hem interim hem final transcript'i göster
   useEffect(() => {
     if (transcript) {
       setInput(transcript);
+    } else if (interimTranscript) {
+      setInput(interimTranscript);
     }
-  }, [transcript]);
+  }, [transcript, interimTranscript]);
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
@@ -245,8 +247,9 @@ export function AIChatBot() {
       <div className="p-4 border-t border-border">
         {isListening && (
           <div className="mb-2 flex items-center gap-2 text-sm text-primary">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-            Dinleniyor... Konuşmayı bitirince durdurun.
+            <div className="w-3 h-3 bg-destructive rounded-full animate-pulse" />
+            <span className="font-medium">Dinleniyor...</span>
+            {interimTranscript && <span className="text-muted-foreground truncate max-w-[200px]">"{interimTranscript}"</span>}
           </div>
         )}
         <div className="flex gap-2">
