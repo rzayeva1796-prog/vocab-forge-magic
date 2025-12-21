@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface UseGroqTTSReturn {
   isSpeaking: boolean;
-  speak: (text: string) => Promise<void>;
+  speak: (text: string, voice?: string) => Promise<void>;
   stop: () => void;
 }
 
@@ -20,7 +20,7 @@ export function useGroqTTS(): UseGroqTTSReturn {
     setIsSpeaking(false);
   }, []);
 
-  const speak = useCallback(async (text: string) => {
+  const speak = useCallback(async (text: string, voice: string = 'Fritz-PlayAI') => {
     if (!text) return;
 
     // Stop any current playback
@@ -30,7 +30,7 @@ export function useGroqTTS(): UseGroqTTSReturn {
       setIsSpeaking(true);
 
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text, voice: 'Fritz-PlayAI' }
+        body: { text, voice }
       });
 
       if (error) {

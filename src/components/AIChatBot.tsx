@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageCircle, Send, X, Bot, User, Loader2, Mic, MicOff, Volume2, VolumeX, HelpCircle } from "lucide-react";
+import { MessageCircle, Send, X, Bot, User, Loader2, Mic, MicOff, Volume2, VolumeX, HelpCircle, UserRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -14,6 +14,38 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Groq TTS voices - categorized by gender
+const VOICES = {
+  female: [
+    { id: 'Arista-PlayAI', name: 'Arista' },
+    { id: 'Celeste-PlayAI', name: 'Celeste' },
+    { id: 'Cheyenne-PlayAI', name: 'Cheyenne' },
+    { id: 'Deedee-PlayAI', name: 'Deedee' },
+    { id: 'Gail-PlayAI', name: 'Gail' },
+    { id: 'Indigo-PlayAI', name: 'Indigo' },
+    { id: 'Quinn-PlayAI', name: 'Quinn' },
+  ],
+  male: [
+    { id: 'Atlas-PlayAI', name: 'Atlas' },
+    { id: 'Basil-PlayAI', name: 'Basil' },
+    { id: 'Briggs-PlayAI', name: 'Briggs' },
+    { id: 'Calum-PlayAI', name: 'Calum' },
+    { id: 'Chip-PlayAI', name: 'Chip' },
+    { id: 'Cillian-PlayAI', name: 'Cillian' },
+    { id: 'Fritz-PlayAI', name: 'Fritz' },
+    { id: 'Mason-PlayAI', name: 'Mason' },
+    { id: 'Mikail-PlayAI', name: 'Mikail' },
+    { id: 'Mitch-PlayAI', name: 'Mitch' },
+    { id: 'Thunder-PlayAI', name: 'Thunder' },
+  ],
+};
 
 interface Message {
   role: 'user' | 'assistant';
@@ -29,6 +61,8 @@ export function AIChatBot() {
   const [wordCount, setWordCount] = useState<number>(0);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [turkishMode, setTurkishMode] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState('Celeste-PlayAI');
+  const [voiceGender, setVoiceGender] = useState<'female' | 'male'>('female');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   
@@ -60,8 +94,8 @@ export function AIChatBot() {
         content: welcomeMessage
       }]);
       
-      if (autoSpeak) {
-        speak(welcomeMessage);
+      if (autoSpeak && !turkishMode) {
+        speak(welcomeMessage, selectedVoice);
       }
     }
   }, [isOpen, turkishMode]);
@@ -114,7 +148,7 @@ export function AIChatBot() {
 
       // Otomatik sesli okuma (sadece İngilizce modda)
       if (autoSpeak && !turkishMode) {
-        speak(reply);
+        speak(reply, selectedVoice);
       }
 
     } catch (error) {
@@ -148,7 +182,16 @@ export function AIChatBot() {
     if (isSpeaking) {
       stop();
     } else {
-      speak(text);
+      speak(text, selectedVoice);
+    }
+  };
+
+  const handleVoiceChange = (gender: 'female' | 'male') => {
+    setVoiceGender(gender);
+    // Pick first voice of the selected gender
+    const voices = VOICES[gender];
+    if (voices.length > 0) {
+      setSelectedVoice(voices[0].id);
     }
   };
 
@@ -207,15 +250,43 @@ export function AIChatBot() {
           </div>
           <div className="flex items-center gap-1">
             {!turkishMode && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setAutoSpeak(!autoSpeak)}
-                className="text-primary-foreground hover:bg-primary-foreground/20"
-                title={autoSpeak ? "Otomatik okuma açık" : "Otomatik okuma kapalı"}
-              >
-                {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-              </Button>
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-primary-foreground hover:bg-primary-foreground/20"
+                      title="Ses seçimi"
+                    >
+                      <UserRound className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => handleVoiceChange('female')}
+                      className={voiceGender === 'female' ? 'bg-accent' : ''}
+                    >
+                      👩 Kadın Sesi
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleVoiceChange('male')}
+                      className={voiceGender === 'male' ? 'bg-accent' : ''}
+                    >
+                      👨 Erkek Sesi
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setAutoSpeak(!autoSpeak)}
+                  className="text-primary-foreground hover:bg-primary-foreground/20"
+                  title={autoSpeak ? "Otomatik okuma açık" : "Otomatik okuma kapalı"}
+                >
+                  {autoSpeak ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
