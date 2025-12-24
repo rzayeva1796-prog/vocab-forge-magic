@@ -917,6 +917,33 @@ export type Database = {
         }
         Relationships: []
       }
+      word_search_progress: {
+        Row: {
+          created_at: string | null
+          current_level: number | null
+          id: string
+          updated_at: string | null
+          used_word_index: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_level?: number | null
+          id?: string
+          updated_at?: string | null
+          used_word_index?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          current_level?: number | null
+          id?: string
+          updated_at?: string | null
+          used_word_index?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       words: {
         Row: {
           created_at: string
