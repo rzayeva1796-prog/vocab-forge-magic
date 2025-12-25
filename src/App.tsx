@@ -18,7 +18,6 @@ import Fun from "./pages/Fun";
 import Movies from "./pages/Movies";
 import Music from "./pages/Music";
 import Admin from "./pages/Admin";
-import SentenceGame from "./pages/SentenceGame";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,7 +38,6 @@ const App = () => (
             <Route path="/game/pair" element={<Game />} />
             <Route path="/game/flash" element={<FlashCard />} />
             <Route path="/game/twice" element={<Twice />} />
-            <Route path="/game/sentence" element={<SentenceGame />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/fun" element={<Fun />} />
