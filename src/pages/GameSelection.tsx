@@ -84,6 +84,15 @@ const GameSelection = () => {
               <MessageSquareText className="w-8 h-8 mr-3" />
               Cümle
             </Button>
+
+            <Button
+              onClick={() => (user ? navigate("/game/sentence") : navigate("/auth"))}
+              className="w-full h-20 text-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600"
+              size="lg"
+            >
+              <MessageSquareText className="w-8 h-8 mr-3" />
+              Cümle Pro
+            </Button>
           </section>
         </main>
       </div>
