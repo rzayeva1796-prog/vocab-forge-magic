@@ -169,23 +169,45 @@ const SentenceGame = () => {
   // File upload handlers
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) {
+      toast.error('Dosya seçilmedi');
+      return;
+    }
 
     const newFiles: UploadedFile[] = [];
+    let errorCount = 0;
     
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      // Only process text-based files
+      const isTextFile = file.type.startsWith('text/') || 
+        file.name.match(/\.(tsx?|jsx?|css|json|html|md|txt|scss|less|yaml|yml|toml|xml|svg|vue|svelte)$/i);
+      
+      if (!isTextFile && file.size > 1024 * 1024) {
+        errorCount++;
+        continue;
+      }
+      
       try {
         const content = await file.text();
-        newFiles.push({ name: file.name, content });
+        // Get relative path if available
+        const relativePath = (file as any).webkitRelativePath || file.name;
+        newFiles.push({ name: relativePath, content });
       } catch (error) {
         console.error('Error reading file:', file.name, error);
+        errorCount++;
       }
     }
 
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-    toast.success(`${newFiles.length} dosya yüklendi!`);
-    setShowFilesDialog(true);
+    if (newFiles.length > 0) {
+      setUploadedFiles(prev => [...prev, ...newFiles]);
+      toast.success(`${newFiles.length} dosya yüklendi!`);
+      setShowFilesDialog(true);
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`${errorCount} dosya okunamadı`);
+    }
     
     // Reset input
     if (fileInputRef.current) {
@@ -199,6 +221,18 @@ const SentenceGame = () => {
       setCopiedFile(file.name);
       toast.success(`${file.name} kopyalandı!`);
       setTimeout(() => setCopiedFile(null), 2000);
+    } catch (error) {
+      toast.error('Kopyalama başarısız');
+    }
+  };
+
+  const handleCopyAllFiles = async () => {
+    try {
+      const allContent = uploadedFiles.map(f => 
+        `// ========== ${f.name} ==========\n${f.content}`
+      ).join('\n\n');
+      await navigator.clipboard.writeText(allContent);
+      toast.success('Tüm dosyalar kopyalandı!');
     } catch (error) {
       toast.error('Kopyalama başarısız');
     }
@@ -236,12 +270,12 @@ const SentenceGame = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 pb-20">
-      {/* Hidden file input */}
+      {/* Hidden file input - accept all code files */}
       <input
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".tsx,.ts,.js,.jsx,.css,.json,.html"
+        accept="*/*"
         onChange={handleFileUpload}
         className="hidden"
       />
@@ -402,14 +436,21 @@ const SentenceGame = () => {
             </div>
           </div>
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex flex-wrap gap-2 pt-4">
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1"
             >
               <Upload className="w-4 h-4 mr-2" />
               Daha Fazla Yükle
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={handleCopyAllFiles}
+              disabled={uploadedFiles.length === 0}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Tümünü Kopyala
             </Button>
             <Button
               variant="destructive"
@@ -419,7 +460,8 @@ const SentenceGame = () => {
               }}
               disabled={uploadedFiles.length === 0}
             >
-              Tümünü Sil
+              <X className="w-4 h-4 mr-2" />
+              Sil
             </Button>
           </div>
         </DialogContent>
