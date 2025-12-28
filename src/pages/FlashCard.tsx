@@ -4,6 +4,7 @@ import { Eye, EyeOff, List, RotateCcw, Undo, Volume2, RefreshCw, ArrowLeft, LogI
 import { toast } from "sonner";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { Word, StarLevel } from "@/types/word";
 import { FlashCard } from "@/components/FlashCard";
 import { AllWordsModal } from "@/components/AllWordsModal";
@@ -40,8 +41,27 @@ const FlashCardPage = () => {
   const urlPackageId = searchParams.get("package_id");
 
   const [selectedPackage, setSelectedPackage] = useState<string>(() => urlPackageId || "all");
+  const [isAdmin, setIsAdmin] = useState(false);
   const { words: unlockedWords, packages: unlockedPackages, loading, error, refetch } =
     useUnlockedWords(userId, urlPackageId);
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (!user?.id) {
+        setIsAdmin(false);
+        return;
+      }
+      const { data } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      setIsAdmin(!!data);
+    };
+    checkAdmin();
+  }, [user?.id]);
 
   const filteredPackages = useMemo(() => {
     if (!urlPackageId) return unlockedPackages;
@@ -327,15 +347,18 @@ const FlashCardPage = () => {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-background via-background to-secondary flex flex-col">
-      <section className="p-4 pb-2" aria-label="Paket seçimi">
-        <div className="max-w-2xl mx-auto">
-          <PackageSelector
-            unlockedPackages={filteredPackages}
-            selectedPackage={selectedPackage}
-            onSelect={handlePackageChange}
-          />
-        </div>
-      </section>
+      {/* Package Selector - only visible for admins */}
+      {isAdmin && (
+        <section className="p-4 pb-2" aria-label="Paket seçimi">
+          <div className="max-w-2xl mx-auto">
+            <PackageSelector
+              unlockedPackages={filteredPackages}
+              selectedPackage={selectedPackage}
+              onSelect={handlePackageChange}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="p-4 pb-0 pt-2" aria-label="İlerleme">
         <div className="max-w-2xl mx-auto">
