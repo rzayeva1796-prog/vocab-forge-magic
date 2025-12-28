@@ -47,6 +47,8 @@ All colors MUST be HSL.
     --radius: 0.75rem;
     
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    --shadow-float: 0 20px 60px -10px rgba(0, 0, 0, 0.15);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
