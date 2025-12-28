@@ -112,7 +112,7 @@ const GameSelection = () => {
           </Button>
           
           <Button
-            onClick={() => navigate("/dictionary")}
+            onClick={() => navigate("/game/flash")}
             className="w-full h-20 text-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600"
             size="lg"
           >
