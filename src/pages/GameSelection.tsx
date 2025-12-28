@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -109,6 +109,15 @@ const GameSelection = () => {
           >
             <MessageSquareText className="w-8 h-8 mr-3" />
             Cümle
+          </Button>
+          
+          <Button
+            onClick={() => navigate("/dictionary")}
+            className="w-full h-20 text-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600"
+            size="lg"
+          >
+            <BookOpen className="w-8 h-8 mr-3" />
+            Game 1
           </Button>
         </div>
       </div>
