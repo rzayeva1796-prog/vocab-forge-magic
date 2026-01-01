@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useLearnedWords, shuffleArray, type LearnedWord, type GameState } from "../hooks/useLearnedWords";
 import { PackageSelector } from "../components/PackageSelector";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 import { Star, Trophy, BookOpen } from "lucide-react";
 
 const Index = () => {
@@ -31,8 +32,11 @@ const Index = () => {
     savedGameState,
     addTetrisXP,
     saveGameState,
-    clearGameState
+    clearGameState,
+    userId
   } = useLearnedWords();
+
+  const { isAdmin } = useIsAdmin(userId);
 
   // Auto-start game when words are loaded
   useEffect(() => {
@@ -250,6 +254,7 @@ const Index = () => {
               unlockedPackages={unlockedPackages}
               selectedPackage={selectedPackage}
               onSelect={setSelectedPackage}
+              isAdmin={isAdmin}
             />
           </div>
           
