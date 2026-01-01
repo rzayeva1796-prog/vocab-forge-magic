@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      book_cache: {
+        Row: {
+          cached_path: string
+          created_at: string
+          external_book_id: string
+          file_type: string | null
+          id: string
+          original_url: string
+        }
+        Insert: {
+          cached_path: string
+          created_at?: string
+          external_book_id: string
+          file_type?: string | null
+          id?: string
+          original_url: string
+        }
+        Update: {
+          cached_path?: string
+          created_at?: string
+          external_book_id?: string
+          file_type?: string | null
+          id?: string
+          original_url?: string
+        }
+        Relationships: []
+      }
       books: {
         Row: {
           category: string | null
@@ -47,6 +74,39 @@ export type Database = {
           id?: string
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      conversation_stories: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          id: string
+          incorrect_words: Json | null
+          package_name: string
+          story: string
+          transcription: string | null
+          word_practice_results: Json | null
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          incorrect_words?: Json | null
+          package_name: string
+          story: string
+          transcription?: string | null
+          word_practice_results?: Json | null
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          incorrect_words?: Json | null
+          package_name?: string
+          story?: string
+          transcription?: string | null
+          word_practice_results?: Json | null
         }
         Relationships: []
       }
@@ -585,6 +645,57 @@ export type Database = {
         }
         Relationships: []
       }
+      rejected_dialogs: {
+        Row: {
+          answer: string
+          created_at: string
+          english: string
+          id: string
+          package_name: string
+          question: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          english: string
+          id?: string
+          package_name: string
+          question: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          english?: string
+          id?: string
+          package_name?: string
+          question?: string
+        }
+        Relationships: []
+      }
+      rejected_sentences: {
+        Row: {
+          created_at: string
+          english: string
+          id: string
+          package_name: string
+          sentence: string
+        }
+        Insert: {
+          created_at?: string
+          english: string
+          id?: string
+          package_name: string
+          sentence: string
+        }
+        Update: {
+          created_at?: string
+          english?: string
+          id?: string
+          package_name?: string
+          sentence?: string
+        }
+        Relationships: []
+      }
       seasons: {
         Row: {
           created_at: string
@@ -896,6 +1007,33 @@ export type Database = {
           },
         ]
       }
+      word_dialogs: {
+        Row: {
+          answer: string
+          created_at: string
+          english: string
+          id: string
+          package_name: string
+          question: string
+        }
+        Insert: {
+          answer: string
+          created_at?: string
+          english: string
+          id?: string
+          package_name: string
+          question: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          english?: string
+          id?: string
+          package_name?: string
+          question?: string
+        }
+        Relationships: []
+      }
       word_packages: {
         Row: {
           created_at: string
@@ -941,6 +1079,33 @@ export type Database = {
           updated_at?: string | null
           used_word_index?: number | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      word_sentences: {
+        Row: {
+          created_at: string
+          english: string
+          id: string
+          package_name: string
+          sentence: string
+          sentence_turkish: string
+        }
+        Insert: {
+          created_at?: string
+          english: string
+          id?: string
+          package_name: string
+          sentence: string
+          sentence_turkish: string
+        }
+        Update: {
+          created_at?: string
+          english?: string
+          id?: string
+          package_name?: string
+          sentence?: string
+          sentence_turkish?: string
         }
         Relationships: []
       }
