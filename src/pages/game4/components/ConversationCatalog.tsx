@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Loader2, Mic, MicOff, Volume2, Check, X, ChevronDown, ChevronUp, Book, FileText } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { externalSupabase, ExternalBook } from '@/lib/externalSupabase';
 import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
@@ -19,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import BookViewer from '@/components/BookViewer';
+import BookViewer from './BookViewer';
 
 interface ConversationCatalogProps {
   onBack: () => void;
@@ -36,14 +35,13 @@ interface WordPracticeResult {
   correct: boolean | null;
 }
 
-interface SavedStory {
+interface ExternalBook {
   id: string;
-  package_name: string;
-  story: string;
-  transcription: string | null;
-  accuracy: number | null;
-  incorrect_words: string[];
-  word_practice_results: WordPracticeResult[];
+  title: string;
+  file_url: string | null;
+  cover_url?: string;
+  category?: string;
+  display_order: number;
   created_at: string;
 }
 
@@ -68,12 +66,6 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [currentStoryId, setCurrentStoryId] = useState<string | null>(null);
-  
-  const [savedStoriesOpen, setSavedStoriesOpen] = useState(false);
-  const [savedStories, setSavedStories] = useState<SavedStory[]>([]);
-  const [loadingSaved, setLoadingSaved] = useState(false);
   
   const [practicingWord, setPracticingWord] = useState<string | null>(null);
   const [isPracticeRecording, setIsPracticeRecording] = useState(false);
@@ -94,8 +86,8 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
 
   const loadBooks = async () => {
     try {
-      console.log('Fetching books from external DB...');
-      const { data, error } = await externalSupabase
+      console.log('Fetching books from DB...');
+      const { data, error } = await supabase
         .from('books')
         .select('*')
         .order('display_order');
@@ -112,7 +104,6 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
         console.log('Books loaded:', data.length);
       } else {
         console.log('No books found in database');
-        toast.info('Veritabanında kitap bulunamadı');
       }
     } catch (error) {
       console.error('Error loading books:', error);
@@ -166,18 +157,20 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
 
   const loadAllPackages = async () => {
     try {
-      const { data } = await externalSupabase
+      const { data } = await supabase
         .from('learned_words')
         .select('package_name');
       
       if (data) {
-        const uniquePackages = [...new Set(data.map(p => p.package_name))].sort((a, b) => {
-          const [a1, a2, a3] = a.split('.').map(Number);
-          const [b1, b2, b3] = b.split('.').map(Number);
-          if (a1 !== b1) return a1 - b1;
-          if (a2 !== b2) return a2 - b2;
-          return a3 - b3;
-        });
+        const uniquePackages = [...new Set(data.map(p => p.package_name).filter(Boolean))]
+          .sort((a, b) => {
+            if (!a || !b) return 0;
+            const [a1, a2, a3] = a.split('.').map(Number);
+            const [b1, b2, b3] = b.split('.').map(Number);
+            if (a1 !== b1) return a1 - b1;
+            if (a2 !== b2) return a2 - b2;
+            return a3 - b3;
+          }) as string[];
         setAllPackages(uniquePackages);
       }
     } catch (error) {
@@ -200,7 +193,6 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
     return packages;
   };
 
-  // Load words for selected package group
   // Get all packages before a given package (across all sections)
   const getAllPreviousPackages = (packageName: string, allPkgs: string[]): string[] => {
     const currentIndex = allPkgs.indexOf(packageName);
@@ -213,7 +205,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
       const packageGroup = getPackageGroup(packageName);
       
       // Load selected 5 packages words (red words)
-      const { data: packageWords } = await externalSupabase
+      const { data: packageWords } = await supabase
         .from('learned_words')
         .select('english, turkish, package_name')
         .in('package_name', packageGroup);
@@ -222,7 +214,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
         const uniqueWordsMap = new Map<string, WordItem>();
         for (const w of packageWords) {
           if (!uniqueWordsMap.has(w.english)) {
-            uniqueWordsMap.set(w.english, w);
+            uniqueWordsMap.set(w.english, w as WordItem);
           }
         }
         setSelectedPackageWords(Array.from(uniqueWordsMap.values()));
@@ -234,7 +226,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
       
       // Load all previous vocabulary words (from packages before the selected 5)
       if (allPreviousPackages.length > 0) {
-        const { data: prevWords } = await externalSupabase
+        const { data: prevWords } = await supabase
           .from('learned_words')
           .select('english, turkish, package_name')
           .in('package_name', allPreviousPackages);
@@ -243,7 +235,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
           const uniqueMap = new Map<string, WordItem>();
           for (const w of prevWords) {
             if (!uniqueMap.has(w.english)) {
-              uniqueMap.set(w.english, w);
+              uniqueMap.set(w.english, w as WordItem);
             }
           }
           setPreviousVocabularyWords(Array.from(uniqueMap.values()));
@@ -254,7 +246,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
       
       // All vocabulary = selected + previous
       const allPackagesUpToSelected = [...allPreviousPackages, ...packageGroup];
-      const { data: allWords } = await externalSupabase
+      const { data: allWords } = await supabase
         .from('learned_words')
         .select('english, turkish, package_name')
         .in('package_name', allPackagesUpToSelected);
@@ -263,7 +255,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
         const uniqueMap = new Map<string, WordItem>();
         for (const w of allWords) {
           if (!uniqueMap.has(w.english)) {
-            uniqueMap.set(w.english, w);
+            uniqueMap.set(w.english, w as WordItem);
           }
         }
         setAllVocabularyWords(Array.from(uniqueMap.values()));
@@ -281,51 +273,7 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
     setAccuracy(null);
     setIncorrectWords([]);
     setWordPracticeResults([]);
-    setCurrentStoryId(null);
     await loadWordsForPackage(pkg);
-  };
-
-  const saveStory = async (autoSave = false) => {
-    if (!story || !selectedPackage) return;
-    
-    setIsSaving(true);
-    try {
-      const storyData = {
-        package_name: selectedPackage,
-        story,
-        transcription: transcription || null,
-        accuracy: accuracy,
-        incorrect_words: incorrectWords as unknown as null,
-        word_practice_results: wordPracticeResults as unknown as null
-      };
-
-      if (currentStoryId) {
-        // Update existing
-        const { error } = await supabase
-          .from('conversation_stories')
-          .update(storyData)
-          .eq('id', currentStoryId);
-        
-        if (error) throw error;
-        if (!autoSave) toast.success('Kaydedildi!');
-      } else {
-        // Insert new
-        const { data, error } = await supabase
-          .from('conversation_stories')
-          .insert(storyData)
-          .select('id')
-          .single();
-        
-        if (error) throw error;
-        setCurrentStoryId(data.id);
-        if (!autoSave) toast.success('Kaydedildi!');
-      }
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast.error('Kaydetme hatası');
-    } finally {
-      setIsSaving(false);
-    }
   };
 
   const getDifficultyLevel = (vocabSize: number): { level: string; description: string } => {
@@ -343,7 +291,6 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
     }
 
     setIsGenerating(true);
-    setCurrentStoryId(null);
     
     try {
       const totalVocabSize = allVocabularyWords.length;
@@ -356,166 +303,45 @@ export function ConversationCatalog({ onBack }: ConversationCatalogProps) {
         .slice(0, mainWordCount);
       
       // 20-30% from previous vocabulary (non-red words)
-      const extraWordCount = Math.ceil(mainWordCount * 0.35); // ~25% of main
+      const extraWordCount = Math.ceil(mainWordCount * 0.35);
       const extraWords = previousVocabularyWords
         .sort(() => Math.random() - 0.5)
         .slice(0, extraWordCount);
-      
-      const allWordsToUse = [...mainWords, ...extraWords];
       
       const mainWordList = mainWords.map(w => `${w.english} (${w.turkish})`).join(', ');
       const extraWordList = extraWords.length > 0 
         ? extraWords.map(w => `${w.english} (${w.turkish})`).join(', ')
         : 'none';
       
-      // Calculate extra word allowance based on difficulty
-      let extraWordAllowance = '10%';
-      let sentenceCount = '10-12';
-      let styleInstructions = '';
-      
-      switch (difficulty.level) {
-        case 'very_easy':
-          extraWordAllowance = '15%';
-          sentenceCount = '10-13';
-          styleInstructions = `
-- Use VERY simple sentences (5-8 words each)
-- Use basic vocabulary and present tense only
-- Simple, clear narrative with a beginning, middle, and end
-- Use common connecting words like "and", "but", "then", "so"`;
-          break;
-        case 'easy':
-          extraWordAllowance = '15%';
-          sentenceCount = '13-16';
-          styleInstructions = `
-- Use simple sentences (8-12 words each)
-- Use basic grammar with mostly present and past tense
-- Create a flowing narrative with logical progression
-- Use transition words to connect ideas naturally`;
-          break;
-        case 'medium':
-          extraWordAllowance = '20%';
-          sentenceCount = '16-20';
-          styleInstructions = `
-- Use moderate sentences (10-15 words each)
-- Include some complex sentences and varied tenses
-- Write with narrative depth and character development
-- Use descriptive language and natural transitions`;
-          break;
-        case 'medium_hard':
-          extraWordAllowance = '25%';
-          sentenceCount = '16-20';
-          styleInstructions = `
-- Use varied sentence structures (12-18 words)
-- Include complex grammar and diverse vocabulary
-- Create rich storytelling with vivid descriptions
-- Use sophisticated transitions and literary techniques`;
-          break;
-        case 'hard':
-          extraWordAllowance = '30%';
-          sentenceCount = '16-20';
-          styleInstructions = `
-- Use sophisticated sentences with complex structures
-- Include advanced vocabulary, idioms, and various grammatical constructions
-- Write with literary depth, nuanced characters, and atmospheric descriptions
-- Employ advanced narrative techniques and elegant prose`;
-          break;
-      }
-      
-      const prompt = `You are a skilled storyteller. Write a cohesive, engaging short story in English that reads like an excerpt from a published book.
+      const prompt = `Write a short English story (100-150 words) using these words naturally:
+Main words: ${mainWordList}
+Additional words: ${extraWordList}
 
-CRITICAL REQUIREMENTS (do all):
-1) This must be ONE coherent story (not a sentence list).
-2) Use REAL HUMAN NAMES for characters (e.g., Sarah, Michael, Emma, David, etc.) - this makes the story feel authentic.
-3) Keep the SAME characters, place, and time throughout (no random jumps).
-4) Every sentence MUST connect to the previous one through:
-   - Cause and effect ("Because of this...", "As a result...")
-   - Time progression ("Later that day...", "After finishing...")
-   - Character reactions ("She felt...", "This made him...")
-   - Continuation of action ("He then...", "She continued to...")
-5) Include a clear narrative arc: setup → development/complication → resolution.
+Write ONLY the story, no title or explanation.`;
 
-SENTENCE CONNECTION RULES:
-- Each sentence must refer back to something in the previous sentence (a person, object, action, or emotion).
-- Use pronouns naturally to maintain continuity (he, she, they, it, this, that).
-- Never start two consecutive sentences the same way.
-- Link sentences with conjunctions and transitions: "however", "therefore", "meanwhile", "because", "so", "then", "after that", "as a result", "despite this", "fortunately".
-
-STRUCTURE:
-- Write the story in 2–3 paragraphs (NOT one sentence per line).
-- First paragraph: introduce character(s) by name and set the scene.
-- Middle: develop the situation with connected events.
-- End: bring the story to a natural conclusion.
-
-SENTENCE LENGTH:
-- Write medium to long sentences (15-25 words each).
-- Combine ideas using conjunctions (and, but, because, when, while, although, since).
-- Avoid short choppy sentences. Create flowing, natural prose.
-
-WORD USAGE (CRITICAL - MUST FOLLOW):
-- PRIORITY WORDS LIST (${selectedPackageWords.length} words total): ${mainWordList}
-- You MUST use AT LEAST ${Math.ceil(selectedPackageWords.length * 0.65)}-${Math.ceil(selectedPackageWords.length * 0.75)} of these priority words (65-75%).
-- CRITICAL: USE EACH WORD ONLY ONCE! Do NOT repeat the same word multiple times. 
-- If you need more vocabulary variety, use synonyms or words from this secondary list: ${extraWordList}
-- Prioritize using MORE DIFFERENT words rather than repeating the same words.
-- You MAY use additional common words to ensure the story flows naturally.
-
-STYLE GUIDELINES:
-${styleInstructions}
-
-LENGTH: Write a story that is 100-150 words total. Use the length to include MORE UNIQUE priority words, not to repeat the same ones.
-
-IMPORTANT:
-- Write ONLY the story (no title, no bullet points, no explanations).
-- Count carefully: you must include at least ${Math.ceil(selectedPackageWords.length * 0.65)} of the ${selectedPackageWords.length} priority words.
-- NO WORD REPETITION: Each priority word should appear exactly ONCE in the story.
-
-Begin the story:`;
-
-      const { data, error } = await supabase.functions.invoke('groq-chat', {
-        body: {
-          messages: [{ role: 'user', content: prompt }],
-          model: 'llama-3.3-70b-versatile'
-        }
+      const { data, error } = await supabase.functions.invoke('ai-chat', {
+        body: { message: prompt }
       });
 
       if (error) throw error;
       
-      const newStory = data.content || '';
-      setStory(newStory);
-      setTranscription('');
-      setComparisonResult([]);
-      setAccuracy(null);
-      setIncorrectWords([]);
-      setWordPracticeResults([]);
-      
-      // Auto-save after generating
-      setTimeout(async () => {
-        const storyData = {
-          package_name: selectedPackage,
-          story: newStory,
-          transcription: null,
-          accuracy: null,
-          incorrect_words: [],
-          word_practice_results: []
-        };
-        
-        const { data: savedData, error: saveError } = await supabase
-          .from('conversation_stories')
-          .insert(storyData)
-          .select('id')
-          .single();
-        
-        if (!saveError && savedData) {
-          setCurrentStoryId(savedData.id);
-        }
-      }, 100);
-      
-      toast.success('Hikaye oluşturuldu ve kaydedildi!');
+      setStory(data.response || data.message || 'Hikaye oluşturulamadı');
     } catch (error) {
       console.error('Error generating story:', error);
       toast.error('Hikaye oluşturulurken hata oluştu');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const speakText = (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
+    } else {
+      toast.error('Tarayıcınız ses sentezini desteklemiyor');
     }
   };
 
@@ -530,96 +356,77 @@ Begin the story:`;
         audioChunksRef.current.push(event.data);
       };
 
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
       mediaRecorder.start();
       setIsRecording(true);
-      toast.info('Kayıt başladı. Hikayeyi okuyun...');
     } catch (error) {
       console.error('Error starting recording:', error);
       toast.error('Mikrofon erişimi sağlanamadı');
     }
   };
 
-  const stopRecording = async () => {
-    if (!mediaRecorderRef.current) return;
-
-    return new Promise<Blob>((resolve) => {
-      mediaRecorderRef.current!.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        resolve(audioBlob);
-      };
-      mediaRecorderRef.current!.stop();
-      mediaRecorderRef.current!.stream.getTracks().forEach(track => track.stop());
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
       setIsRecording(false);
-    });
-  };
-
-  const handleRecordToggle = async () => {
-    if (isRecording) {
-      setIsTranscribing(true);
-      const audioBlob = await stopRecording();
-      
-      try {
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = reader.result as string;
-          
-          const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-            body: { audio: base64Audio }
-          });
-
-          if (error) throw error;
-          
-          const transcribedText = data.text || '';
-          setTranscription(transcribedText);
-          
-          compareTexts(story, transcribedText);
-          
-          toast.success('Transkripsiyon tamamlandı!');
-          
-          // Auto-save after transcription
-          saveStory(true);
-        };
-      } catch (error) {
-        console.error('Error transcribing:', error);
-        toast.error('Transkripsiyon hatası');
-      } finally {
-        setIsTranscribing(false);
-      }
-    } else {
-      await startRecording();
     }
   };
 
-  const compareTexts = (original: string, transcribed: string) => {
-    const originalWords = original.toLowerCase().replace(/[.,!?;:'"]/g, '').split(/\s+/);
-    const transcribedWords = transcribed.toLowerCase().replace(/[.,!?;:'"]/g, '').split(/\s+/);
-    
-    const results: { word: string; correct: boolean }[] = [];
-    const wrongWords: string[] = [];
-    
-    transcribedWords.forEach((word) => {
-      const isCorrect = originalWords.includes(word);
-      results.push({ word, correct: isCorrect });
-      if (!isCorrect && word.length > 2) {
-        wrongWords.push(word);
-      }
-    });
-    
-    setComparisonResult(results);
-    setIncorrectWords([...new Set(wrongWords)]);
-    setWordPracticeResults([...new Set(wrongWords)].map(w => ({ word: w, correct: null })));
-    
-    const correctCount = results.filter(r => r.correct).length;
-    const accuracyPercent = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
-    setAccuracy(accuracyPercent);
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        const base64Audio = reader.result as string;
+        
+        const { data, error } = await supabase.functions.invoke('text-to-speech', {
+          body: { 
+            audio: base64Audio,
+            mode: 'transcribe'
+          }
+        });
+
+        if (error) throw error;
+        
+        const transcribedText = data.text || '';
+        setTranscription(transcribedText);
+        compareTexts(story, transcribedText);
+      };
+    } catch (error) {
+      console.error('Error transcribing:', error);
+      toast.error('Ses dönüştürme hatası');
+    } finally {
+      setIsTranscribing(false);
+    }
   };
 
-  const speakWord = (word: string) => {
-    const utterance = new SpeechSynthesisUtterance(word);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.8;
-    speechSynthesis.speak(utterance);
+  const compareTexts = (original: string, spoken: string) => {
+    const originalWords = original.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+    const spokenWords = spoken.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/);
+    
+    const result = originalWords.map((word, index) => ({
+      word,
+      correct: spokenWords.includes(word)
+    }));
+    
+    setComparisonResult(result);
+    
+    const correctCount = result.filter(r => r.correct).length;
+    const acc = Math.round((correctCount / originalWords.length) * 100);
+    setAccuracy(acc);
+    
+    const incorrect = result.filter(r => !r.correct).map(r => r.word);
+    setIncorrectWords([...new Set(incorrect)]);
+    
+    // Initialize word practice results
+    setWordPracticeResults(incorrect.map(word => ({ word, correct: null })));
   };
 
   const startWordPractice = async (word: string) => {
@@ -634,9 +441,14 @@ Begin the story:`;
         practiceAudioChunksRef.current.push(event.data);
       };
 
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(practiceAudioChunksRef.current, { type: 'audio/webm' });
+        await checkWordPronunciation(word, audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
       mediaRecorder.start();
       setIsPracticeRecording(true);
-      toast.info(`"${word}" kelimesini söyleyin...`);
     } catch (error) {
       console.error('Error starting practice recording:', error);
       toast.error('Mikrofon erişimi sağlanamadı');
@@ -644,440 +456,284 @@ Begin the story:`;
     }
   };
 
-  const stopWordPractice = async () => {
-    if (!practiceMediaRecorderRef.current || !practicingWord) return;
+  const stopWordPractice = () => {
+    if (practiceMediaRecorderRef.current && isPracticeRecording) {
+      practiceMediaRecorderRef.current.stop();
+      setIsPracticeRecording(false);
+    }
+  };
 
+  const checkWordPronunciation = async (word: string, audioBlob: Blob) => {
     setIsPracticeTranscribing(true);
-    
-    const audioBlob = await new Promise<Blob>((resolve) => {
-      practiceMediaRecorderRef.current!.onstop = () => {
-        const blob = new Blob(practiceAudioChunksRef.current, { type: 'audio/webm' });
-        resolve(blob);
-      };
-      practiceMediaRecorderRef.current!.stop();
-      practiceMediaRecorderRef.current!.stream.getTracks().forEach(track => track.stop());
-    });
-    
-    setIsPracticeRecording(false);
-
     try {
       const reader = new FileReader();
       reader.readAsDataURL(audioBlob);
       reader.onloadend = async () => {
         const base64Audio = reader.result as string;
         
-        const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-          body: { audio: base64Audio }
+        const { data, error } = await supabase.functions.invoke('text-to-speech', {
+          body: { 
+            audio: base64Audio,
+            mode: 'transcribe'
+          }
         });
 
         if (error) throw error;
         
-        const transcribedWord = (data.text || '').toLowerCase().trim().replace(/[.,!?;:'"]/g, '');
-        const targetWord = practicingWord.toLowerCase();
-        
-        const isCorrect = transcribedWord.includes(targetWord) || targetWord.includes(transcribedWord);
+        const transcribedWord = (data.text || '').toLowerCase().trim();
+        const isCorrect = transcribedWord.includes(word.toLowerCase());
         
         setWordPracticeResults(prev => 
-          prev.map(w => w.word === practicingWord ? { ...w, correct: isCorrect } : w)
+          prev.map(r => r.word === word ? { ...r, correct: isCorrect } : r)
         );
         
         if (isCorrect) {
-          toast.success('Doğru!');
+          toast.success(`"${word}" doğru telaffuz edildi!`);
         } else {
-          toast.error(`Yanlış. Söylediğiniz: "${transcribedWord}"`);
+          toast.error(`"${word}" yanlış. Söylenen: "${transcribedWord}"`);
         }
         
-        // Auto-save after practice
-        saveStory(true);
+        setPracticingWord(null);
       };
     } catch (error) {
-      console.error('Error transcribing practice:', error);
-      toast.error('Transkripsiyon hatası');
+      console.error('Error checking pronunciation:', error);
+      toast.error('Kontrol hatası');
+      setPracticingWord(null);
     } finally {
       setIsPracticeTranscribing(false);
-      setPracticingWord(null);
     }
-  };
-
-  const loadSavedStories = async () => {
-    setLoadingSaved(true);
-    try {
-      const { data, error } = await supabase
-        .from('conversation_stories')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setSavedStories((data || []).map(s => ({
-        ...s,
-        incorrect_words: (s.incorrect_words as unknown as string[]) || [],
-        word_practice_results: (s.word_practice_results as unknown as WordPracticeResult[]) || []
-      })));
-    } catch (error) {
-      console.error('Error loading saved stories:', error);
-      toast.error('Kayıtlı hikayeler yüklenemedi');
-    } finally {
-      setLoadingSaved(false);
-    }
-  };
-
-  const loadSavedStory = (saved: SavedStory) => {
-    setSelectedPackage(saved.package_name);
-    setStory(saved.story);
-    setTranscription(saved.transcription || '');
-    setAccuracy(saved.accuracy);
-    setIncorrectWords(saved.incorrect_words);
-    setWordPracticeResults(saved.word_practice_results);
-    setCurrentStoryId(saved.id);
-    
-    if (saved.transcription) {
-      compareTexts(saved.story, saved.transcription);
-    }
-    
-    setSavedStoriesOpen(false);
-    loadWordsForPackage(saved.package_name);
-    toast.success('Hikaye yüklendi');
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="flex flex-col h-full bg-background">
       {/* Header */}
-      <div className="p-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h1 className="text-xl font-bold">Konuşma Kataloğu</h1>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Book className="w-4 h-4 mr-1" />
-                {selectedBook?.title || 'Kitap Seç'}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
-              {books.map(book => (
-                <DropdownMenuItem key={book.id} onClick={() => handleSelectBook(book)}>
-                  {book.title}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <div className="flex items-center gap-3 p-4 border-b">
+        <Button variant="ghost" size="icon" onClick={onBack}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <h1 className="text-lg font-semibold">Konuşma Pratiği</h1>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 p-4 space-y-4 overflow-auto">
-        {/* Collapsible Vocabulary Section */}
-        {selectedPackageWords.length > 0 && (
-          <Collapsible open={vocabularyOpen} onOpenChange={setVocabularyOpen}>
-            <Card className="bg-muted/50">
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-4">
+          {/* Package Selection */}
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="flex-1">
+                  {selectedPackage || 'Paket Seç'}
+                  <ChevronDown className="w-4 h-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="max-h-60 overflow-y-auto">
+                {allPackages.map(pkg => (
+                  <DropdownMenuItem key={pkg} onClick={() => handleSelectPackage(pkg)}>
+                    {pkg}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {books.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline">
+                    <Book className="w-4 h-4 mr-2" />
+                    Kitap
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="max-h-60 overflow-y-auto">
+                  {books.map(book => (
+                    <DropdownMenuItem key={book.id} onClick={() => handleSelectBook(book)}>
+                      {book.title}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+
+          {/* Selected Package Words */}
+          {selectedPackageWords.length > 0 && (
+            <Collapsible open={vocabularyOpen} onOpenChange={setVocabularyOpen}>
               <CollapsibleTrigger asChild>
-                <CardContent className="p-3 cursor-pointer hover:bg-muted/70 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Kelime Haznesi</p>
-                      <p className="text-xs text-muted-foreground">
-                        Seçilen: {selectedPackageWords.length} kelime | Önceki: {previousVocabularyWords.length} kelime | Toplam: {allVocabularyWords.length} kelime
-                      </p>
-                    </div>
-                    {vocabularyOpen ? (
-                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                    )}
-                  </div>
-                </CardContent>
+                <Button variant="outline" className="w-full justify-between">
+                  Kelimeler ({selectedPackageWords.length})
+                  {vocabularyOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </Button>
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <CardContent className="p-3 pt-0 border-t border-border">
-                  <ScrollArea className="h-64">
-                    {/* Selected 5 packages words - Red */}
-                    <div className="mb-4">
-                      <p className="text-xs font-medium text-red-500 mb-2">
-                        Seçilen 5 Paket ({selectedPackageWords.length} kelime):
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedPackageWords.map((w, idx) => (
-                          <span key={idx} className="text-xs bg-red-500/10 text-red-500 px-2 py-1 rounded">
-                            {w.english}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Previous vocabulary words - Normal */}
-                    {previousVocabularyWords.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-muted-foreground mb-2">
-                          Önceki Paketler ({previousVocabularyWords.length} kelime):
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {previousVocabularyWords.map((w, idx) => (
-                            <span key={idx} className="text-xs bg-muted px-2 py-1 rounded">
-                              {w.english}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </ScrollArea>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-        )}
-
-        {/* Story/Book box */}
-        <Card className={isDocumentFile && selectedBook ? "h-96" : ""}>
-          <CardContent className={`p-4 ${isDocumentFile && selectedBook ? "h-full flex flex-col" : ""}`}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                {isDocumentFile ? <FileText className="w-4 h-4" /> : null}
-                <p className="text-sm font-medium">
-                  {isDocumentFile ? 'Kitap İçeriği' : 'Hikaye'}
-                </p>
-              </div>
-              {story && !isDocumentFile && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    const utterance = new SpeechSynthesisUtterance(story);
-                    utterance.lang = 'en-US';
-                    speechSynthesis.speak(utterance);
-                  }}
-                >
-                  <Volume2 className="w-4 h-4" />
-                </Button>
-              )}
-            </div>
-            
-            {isDocumentFile && selectedBook?.file_url ? (
-              <div className="flex-1 min-h-0">
-                <BookViewer 
-                  fileUrl={selectedBook.file_url}
-                  bookId={selectedBook.id}
-                  onTextExtracted={handleTextExtracted}
-                />
-              </div>
-            ) : selectedBook && !selectedBook.file_url ? (
-              <div className="flex items-center justify-center h-48 text-muted-foreground">
-                <p className="text-sm">Bu kitabın dosyası henüz yüklenmemiş</p>
-              </div>
-            ) : (
-              <ScrollArea className="h-48">
-                {isLoadingBook ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : story ? (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {story.split(/(\s+)/).map((segment, idx) => {
-                      const cleanWord = segment.toLowerCase().replace(/[.,!?;:'"()]/g, '');
-                      const isSelectedWord = selectedPackageWords.some(w => w.english.toLowerCase() === cleanWord);
-                      const isPreviousWord = previousVocabularyWords.some(w => w.english.toLowerCase() === cleanWord);
-                      
-                      if (isSelectedWord) {
-                        return <span key={idx} className="text-purple-500 font-medium">{segment}</span>;
-                      } else if (isPreviousWord) {
-                        return <span key={idx} className="text-green-500">{segment}</span>;
-                      }
-                      return <span key={idx}>{segment}</span>;
-                    })}
-                  </p>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">
-                    Kitap seçin
-                  </p>
-                )}
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Record button */}
-        <Button 
-          onClick={handleRecordToggle}
-          disabled={!story || isTranscribing}
-          variant={isRecording ? "destructive" : "default"}
-          className="w-full"
-        >
-          {isTranscribing ? (
-            <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Transkripsiyon yapılıyor...
-            </>
-          ) : isRecording ? (
-            <>
-              <MicOff className="w-4 h-4 mr-2" />
-              Kaydı Durdur
-            </>
-          ) : (
-            <>
-              <Mic className="w-4 h-4 mr-2" />
-              Konuş
-            </>
-          )}
-        </Button>
-
-        {/* Transcription box */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium">Transkripsiyon</p>
-              {accuracy !== null && (
-                <span className={`text-sm font-bold ${accuracy >= 70 ? 'text-green-500' : accuracy >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
-                  %{accuracy} doğruluk
-                </span>
-              )}
-            </div>
-            <ScrollArea className="h-48">
-              {comparisonResult.length > 0 ? (
-                <p className="text-sm leading-relaxed">
-                  {comparisonResult.map((item, idx) => (
-                    <span
-                      key={idx}
-                      className={item.correct ? '' : 'text-red-500 font-medium'}
-                    >
-                      {item.word}{' '}
-                    </span>
-                  ))}
-                </p>
-              ) : transcription ? (
-                <p className="text-sm leading-relaxed">{transcription}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Hikayeyi okuyup kaydedin
-                </p>
-              )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Incorrect words practice section */}
-        {wordPracticeResults.length > 0 && (
-          <Card>
-            <CardContent className="p-4">
-              <p className="text-sm font-medium mb-3">Yanlış Kelimeler - Pratik Yap</p>
-              <div className="space-y-2">
-                {wordPracticeResults.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-muted/50 p-2 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      {item.correct === true && (
-                        <Check className="w-5 h-5 text-green-500" />
-                      )}
-                      {item.correct === false && (
-                        <X className="w-5 h-5 text-red-500" />
-                      )}
-                      {item.correct === null && (
-                        <div className="w-5 h-5" />
-                      )}
-                      <span className={`font-medium ${
-                        item.correct === true ? 'text-green-600' : 
-                        item.correct === false ? 'text-red-500' : ''
-                      }`}>
-                        {item.word}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => speakWord(item.word)}
-                        title="Seslendir"
-                      >
-                        <Volume2 className="w-4 h-4" />
-                      </Button>
-                      
-                      {practicingWord === item.word ? (
-                        <Button
-                          variant={isPracticeRecording ? "destructive" : "default"}
-                          size="sm"
-                          onClick={stopWordPractice}
-                          disabled={isPracticeTranscribing}
+                <Card className="mt-2">
+                  <CardContent className="p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {selectedPackageWords.map((word, index) => (
+                        <span 
+                          key={index}
+                          className="px-2 py-1 text-xs bg-primary/10 text-primary rounded-full"
                         >
-                          {isPracticeTranscribing ? (
+                          {word.english}
+                        </span>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {/* Generate Story Button */}
+          {selectedPackage && !story && (
+            <Button 
+              onClick={generateStory} 
+              disabled={isGenerating}
+              className="w-full"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Hikaye Oluşturuluyor...
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4 mr-2" />
+                  Hikaye Oluştur
+                </>
+              )}
+            </Button>
+          )}
+
+          {/* Book Viewer Dialog */}
+          {selectedBook && isDocumentFile && (
+            <Dialog open={!!selectedBook} onOpenChange={() => setSelectedBook(null)}>
+              <DialogContent className="max-w-3xl h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle>{selectedBook.title}</DialogTitle>
+                </DialogHeader>
+                <div className="flex-1 overflow-hidden">
+                  <BookViewer 
+                    fileUrl={selectedBook.file_url || ''} 
+                    bookId={selectedBook.id}
+                    onTextExtracted={handleTextExtracted}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* Story Display */}
+          {story && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-medium">Hikaye</h3>
+                  <Button variant="ghost" size="sm" onClick={() => speakText(story)}>
+                    <Volume2 className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-sm leading-relaxed">{story}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recording Controls */}
+          {story && (
+            <div className="flex gap-2">
+              <Button 
+                onClick={isRecording ? stopRecording : startRecording}
+                variant={isRecording ? "destructive" : "default"}
+                className="flex-1"
+                disabled={isTranscribing}
+              >
+                {isTranscribing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Dönüştürülüyor...
+                  </>
+                ) : isRecording ? (
+                  <>
+                    <MicOff className="w-4 h-4 mr-2" />
+                    Kaydı Durdur
+                  </>
+                ) : (
+                  <>
+                    <Mic className="w-4 h-4 mr-2" />
+                    Kaydet
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Transcription Result */}
+          {transcription && (
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-medium mb-2">Söylediğiniz</h3>
+                <p className="text-sm text-muted-foreground">{transcription}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Accuracy Display */}
+          {accuracy !== null && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Doğruluk</span>
+                  <span className={`text-lg font-bold ${accuracy >= 80 ? 'text-green-500' : accuracy >= 60 ? 'text-yellow-500' : 'text-red-500'}`}>
+                    %{accuracy}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Incorrect Words Practice */}
+          {wordPracticeResults.length > 0 && (
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-medium mb-3">Yanlış Kelimeler</h3>
+                <div className="space-y-2">
+                  {wordPracticeResults.map((result, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
+                      <span className="font-medium">{result.word}</span>
+                      <div className="flex items-center gap-2">
+                        {result.correct === true && <Check className="w-4 h-4 text-green-500" />}
+                        {result.correct === false && <X className="w-4 h-4 text-red-500" />}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => speakText(result.word)}
+                        >
+                          <Volume2 className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant={practicingWord === result.word && isPracticeRecording ? "destructive" : "outline"}
+                          size="sm"
+                          onClick={() => 
+                            practicingWord === result.word && isPracticeRecording 
+                              ? stopWordPractice() 
+                              : startWordPractice(result.word)
+                          }
+                          disabled={isPracticeTranscribing || (practicingWord !== null && practicingWord !== result.word)}
+                        >
+                          {isPracticeTranscribing && practicingWord === result.word ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
+                          ) : isPracticeRecording && practicingWord === result.word ? (
                             <MicOff className="w-4 h-4" />
+                          ) : (
+                            <Mic className="w-4 h-4" />
                           )}
                         </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => startWordPractice(item.word)}
-                          disabled={practicingWord !== null}
-                          title="Konuş"
-                        >
-                          <Mic className="w-4 h-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Saved Stories Dialog */}
-      <Dialog open={savedStoriesOpen} onOpenChange={setSavedStoriesOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Kayıtlı Hikayeler</DialogTitle>
-          </DialogHeader>
-          
-          {loadingSaved ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : savedStories.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              Kayıtlı hikaye yok
-            </p>
-          ) : (
-            <ScrollArea className="max-h-96">
-              <div className="space-y-2">
-                {savedStories.map(saved => (
-                  <Card 
-                    key={saved.id} 
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => loadSavedStory(saved)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-sm">{saved.package_name}</span>
-                        {saved.accuracy !== null && (
-                          <span className={`text-xs font-bold ${
-                            saved.accuracy >= 70 ? 'text-green-500' : 
-                            saved.accuracy >= 50 ? 'text-yellow-500' : 'text-red-500'
-                          }`}>
-                            %{saved.accuracy}
-                          </span>
-                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {saved.story.substring(0, 100)}...
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(saved.created_at).toLocaleDateString('tr-TR')}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
-        </DialogContent>
-      </Dialog>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

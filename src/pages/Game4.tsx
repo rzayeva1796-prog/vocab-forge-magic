@@ -10,10 +10,15 @@ import { DialogCatalog } from '@/pages/game4/components/DialogCatalog';
 import { ConversationCatalog } from '@/pages/game4/components/ConversationCatalog';
 import { WordSearchGame } from '@/pages/game4/components/game/WordSearchGame';
 import { supabase } from '@/integrations/supabase/client';
-import { externalSupabase, ExternalPackage } from '@/pages/game4/lib/externalSupabase';
 import { Word, GameContent, WordPackage } from '@/pages/game4/types/game';
 import { BookOpen, ImageIcon, Loader2, Images, Package, Layers, FileText, MessageCircle, Mic, Grid3X3 } from 'lucide-react';
 import { toast } from 'sonner';
+
+interface ExternalPackage {
+  id: string;
+  name: string;
+  created_at: string;
+}
 
 interface Section {
   id: string;
@@ -75,9 +80,9 @@ export default function Game4() {
     }
     
     try {
-      // External words ve vocabulary'yi paralel yükle
-      const [externalWordsResult, vocabularyResult] = await Promise.all([
-        externalSupabase
+      // learned_words tablosundan kelimeleri al
+      const [wordsResult, vocabularyResult] = await Promise.all([
+        supabase
           .from('learned_words')
           .select('*')
           .eq('package_name', packageName)
@@ -85,10 +90,10 @@ export default function Game4() {
         loadVocabularyForPackageAsync(packageName)
       ]);
 
-      const { data: externalWords, error } = externalWordsResult;
+      const { data: learnedWords, error } = wordsResult;
       
       if (error) throw error;
-      if (!externalWords || externalWords.length === 0) {
+      if (!learnedWords || learnedWords.length === 0) {
         toast.error('Bu pakette kelime bulunamadı');
         setIsAutoNavigating(false);
         setScreen('home');
@@ -97,56 +102,26 @@ export default function Game4() {
 
       // Unique kelimeleri al
       const uniqueWordsMap = new Map<string, any>();
-      for (const word of externalWords) {
+      for (const word of learnedWords) {
         if (!uniqueWordsMap.has(word.english)) {
           uniqueWordsMap.set(word.english, word);
         }
       }
       const uniqueWords = Array.from(uniqueWordsMap.values());
 
-      // Local package ve words'ü hazırla
-      const { data: existingPackage } = await supabase
-        .from('word_packages')
-        .select('*')
-        .eq('name', packageName)
-        .maybeSingle();
-
-      let localPackageId: string;
-
-      if (existingPackage) {
-        localPackageId = existingPackage.id;
-      } else {
-        const { data: newPackage, error: packageError } = await supabase
-          .from('word_packages')
-          .insert({ name: packageName })
-          .select()
-          .single();
-
-        if (packageError) throw packageError;
-        localPackageId = newPackage.id;
-      }
-
-      // Words'ü sil ve yeniden ekle
-      await supabase.from('words').delete().eq('package_id', localPackageId);
-
-      const wordsToInsert = uniqueWords.map((w: any, index: number) => ({
-        package_id: localPackageId,
+      // Word tipine dönüştür
+      const formattedWords: Word[] = uniqueWords.map((w: any, index: number) => ({
+        id: w.id,
+        package_id: w.package_id || '',
         english: w.english,
         turkish: w.turkish,
-        word_index: index,
-        image_url: w.image_url || null
+        image_url: w.image_url || null,
+        word_index: index
       }));
 
-      await supabase.from('words').insert(wordsToInsert);
-
       // State'leri güncelle
-      setCurrentPackage({ id: localPackageId, name: packageName, created_at: new Date().toISOString() });
-      setWords(wordsToInsert.map((w, i) => ({ 
-        ...w, 
-        id: `temp-${i}`,
-        created_at: new Date().toISOString(),
-        rejected_images: null
-      })) as any);
+      setCurrentPackage({ id: '', name: packageName, created_at: new Date().toISOString() });
+      setWords(formattedWords);
       setVocabularyWords(vocabularyResult);
 
       // Direkt oyuna geç
@@ -175,7 +150,7 @@ export default function Game4() {
         packageNames.push(`${section}.${i}`);
       }
       
-      const { data: allWords } = await externalSupabase
+      const { data: allWords } = await supabase
         .from('learned_words')
         .select('english, turkish')
         .in('package_name', packageNames);
@@ -198,12 +173,12 @@ export default function Game4() {
 
   const loadSections = async () => {
     try {
-      const { data: packagesData } = await externalSupabase
+      const { data: packagesData } = await supabase
         .from('learned_words')
         .select('package_name');
       
       if (packagesData) {
-        const uniquePackageNames = [...new Set(packagesData.map(p => p.package_name))];
+        const uniquePackageNames = [...new Set(packagesData.map(p => p.package_name).filter(Boolean))] as string[];
         const parsedSections = parseSectionsFromPackages(uniquePackageNames);
         setSections(parsedSections);
       }
@@ -212,69 +187,49 @@ export default function Game4() {
     }
   };
 
-  const loadCompletedPackages = async () => {
-    const { data: progressData } = await supabase
-      .from('user_progress')
-      .select('package_id')
-      .not('completed_at', 'is', null);
-
-    if (progressData) {
-      const packageIds = progressData.map(p => p.package_id);
-      const { data: packagesData } = await supabase
-        .from('word_packages')
-        .select('name')
-        .in('id', packageIds);
-      
-      if (packagesData) {
-        setCompletedPackages(packagesData.map(p => p.name));
-      }
-    }
-  };
-
   const loadExistingPackage = async () => {
-    await loadCompletedPackages();
-    
+    // Son kullanılan paketi bul
     const { data: packages } = await supabase
-      .from('word_packages')
-      .select('*')
-      .order('created_at', { ascending: false })
+      .from('learned_words')
+      .select('package_name')
+      .order('added_at', { ascending: false })
       .limit(1);
 
-    if (packages && packages.length > 0) {
-      setCurrentPackage(packages[0] as WordPackage);
-      await loadPackageData(packages[0].id);
+    if (packages && packages.length > 0 && packages[0].package_name) {
+      const packageName = packages[0].package_name;
+      setCurrentPackage({ id: '', name: packageName, created_at: '' });
+      await loadPackageData(packageName);
     }
   };
 
-  const loadPackageData = async (packageId: string) => {
+  const loadPackageData = async (packageName: string) => {
     const { data: wordsData } = await supabase
-      .from('words')
+      .from('learned_words')
       .select('*')
-      .eq('package_id', packageId)
-      .order('word_index');
+      .eq('package_name', packageName)
+      .order('id');
 
     if (wordsData) {
-      setWords(wordsData as Word[]);
-
-      const wordIds = wordsData.map(w => w.id);
-      if (wordIds.length > 0) {
-        const { data: contentData } = await supabase
-          .from('game_content')
-          .select('*')
-          .in('word_id', wordIds);
-
-        if (contentData) {
-          setGameContent(contentData as unknown as GameContent[]);
+      // Unique kelimeleri al
+      const uniqueWordsMap = new Map<string, any>();
+      for (const word of wordsData) {
+        if (!uniqueWordsMap.has(word.english)) {
+          uniqueWordsMap.set(word.english, word);
         }
       }
-    }
+      const uniqueWords = Array.from(uniqueWordsMap.values());
 
-    // Load progress
-    const { data: progressData } = await supabase
-      .from('user_progress')
-      .select('*')
-      .eq('package_id', packageId)
-      .not('completed_at', 'is', null);
+      const formattedWords: Word[] = uniqueWords.map((w: any, index: number) => ({
+        id: w.id,
+        package_id: w.package_id || '',
+        english: w.english,
+        turkish: w.turkish,
+        image_url: w.image_url || null,
+        word_index: index
+      }));
+
+      setWords(formattedWords);
+    }
   };
 
   const handleSelectExternalPackage = async (pkg: ExternalPackage, stayOnScreen = false) => {
@@ -285,15 +240,15 @@ export default function Game4() {
     }
     
     try {
-      // Fetch words from external database
-      const { data: externalWords, error } = await externalSupabase
+      // learned_words tablosundan kelimeleri al
+      const { data: learnedWords, error } = await supabase
         .from('learned_words')
         .select('*')
         .eq('package_name', pkg.name)
         .order('id');
 
       if (error) throw error;
-      if (!externalWords || externalWords.length === 0) {
+      if (!learnedWords || learnedWords.length === 0) {
         toast.error('Bu pakette kelime bulunamadı');
         setIsLoadingPackage(false);
         return;
@@ -301,63 +256,26 @@ export default function Game4() {
 
       // Çift kelimeleri filtrele - her english kelimesinden sadece birini al
       const uniqueWordsMap = new Map<string, any>();
-      for (const word of externalWords) {
+      for (const word of learnedWords) {
         if (!uniqueWordsMap.has(word.english)) {
           uniqueWordsMap.set(word.english, word);
         }
       }
       const uniqueWords = Array.from(uniqueWordsMap.values());
 
-      // Check if package already exists locally
-      const { data: existingPackage } = await supabase
-        .from('word_packages')
-        .select('*')
-        .eq('name', pkg.name)
-        .maybeSingle();
-
-      let localPackageId: string;
-
-      if (existingPackage) {
-        localPackageId = existingPackage.id;
-      } else {
-        // Create new package
-        const { data: newPackage, error: packageError } = await supabase
-          .from('word_packages')
-          .insert({ name: pkg.name })
-          .select()
-          .single();
-
-        if (packageError) throw packageError;
-        localPackageId = newPackage.id;
-      }
-
-      // Delete existing words for this package and re-insert
-      await supabase.from('words').delete().eq('package_id', localPackageId);
-
-      // Insert unique words with generated word_index
-      const wordsToInsert = uniqueWords.map((w: any, index: number) => ({
-        package_id: localPackageId,
+      // Word tipine dönüştür
+      const formattedWords: Word[] = uniqueWords.map((w: any, index: number) => ({
+        id: w.id,
+        package_id: w.package_id || '',
         english: w.english,
         turkish: w.turkish,
-        word_index: index,
-        image_url: w.image_url || null
+        image_url: w.image_url || null,
+        word_index: index
       }));
 
-      const { error: insertError } = await supabase.from('words').insert(wordsToInsert);
-      if (insertError) throw insertError;
-
-      // Load the package data
-      const { data: packageData } = await supabase
-        .from('word_packages')
-        .select('*')
-        .eq('id', localPackageId)
-        .single();
-
-      if (packageData) {
-        setCurrentPackage(packageData as WordPackage);
-        await loadPackageData(localPackageId);
-        toast.success(`${pkg.name} paketi yüklendi! (${uniqueWords.length} kelime)`);
-      }
+      setCurrentPackage({ id: '', name: pkg.name, created_at: pkg.created_at });
+      setWords(formattedWords);
+      toast.success(`${pkg.name} paketi yüklendi! (${uniqueWords.length} kelime)`);
     } catch (error) {
       console.error('Error loading external package:', error);
       toast.error('Paket yüklenirken hata oluştu');
@@ -402,8 +320,8 @@ export default function Game4() {
         packageNames.push(`${section}.${i}`);
       }
       
-      // Tüm kelimeleri external database'den al
-      const { data: allWords } = await externalSupabase
+      // Tüm kelimeleri learned_words tablosundan al
+      const { data: allWords } = await supabase
         .from('learned_words')
         .select('english, turkish, package_name')
         .in('package_name', packageNames);
@@ -431,13 +349,6 @@ export default function Game4() {
   const handleRoundComplete = async () => {
     if (!currentPackage) return;
 
-    // Mark this package as completed
-    await supabase.from('user_progress').insert({
-      package_id: currentPackage.id,
-      round_index: 0,
-      completed_at: new Date().toISOString()
-    });
-
     // Add to completed packages
     setCompletedPackages(prev => [...prev, currentPackage.name]);
 
@@ -445,7 +356,6 @@ export default function Game4() {
     setScreen('section-rounds');
     toast.success(`${currentPackage.name} tamamlandı!`);
   };
-
 
   const wordsWithoutImages = words.filter(w => !w.image_url);
 
@@ -467,14 +377,11 @@ export default function Game4() {
       setImageProgress({ current: i + 1, total: wordsToFetch.length });
       
       try {
-        const rejectedImages = (word as any).rejected_images || [];
-        
         const { data } = await supabase.functions.invoke('fetch-word-image', {
           body: { 
             wordId: word.id, 
             query: word.english, 
-            turkish: word.turkish,
-            rejectedImages
+            turkish: word.turkish
           }
         });
         
@@ -505,10 +412,10 @@ export default function Game4() {
     let successCount = 0;
     let errorCount = 0;
     
-    // Save all words with images to external database
+    // Save all words with images to database
     for (const word of words) {
       if (word.image_url) {
-        const { error } = await externalSupabase
+        const { error } = await supabase
           .from('learned_words')
           .update({ image_url: word.image_url })
           .eq('package_name', currentPackage.name)
