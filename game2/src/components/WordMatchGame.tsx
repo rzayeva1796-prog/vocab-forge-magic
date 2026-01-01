@@ -66,12 +66,13 @@ const buildWordPool = (words: WordWithStar[], round: number): WordWithStar[] => 
 };
 
 export const WordMatchGame = () => {
-  // Get user_id and package_id from URL params - read once at mount
+  // Get user_id, package_id and is_admin from URL params - read once at mount
   const urlParams = new URLSearchParams(window.location.search);
   const userId = urlParams.get('user_id');
   const initialPackageId = urlParams.get('package_id');
+  const isAdmin = urlParams.get('is_admin') === 'true';
   
-  console.log('[WordMatchGame] URL params - userId:', userId, 'packageId:', initialPackageId);
+  console.log('[WordMatchGame] URL params - userId:', userId, 'packageId:', initialPackageId, 'isAdmin:', isAdmin);
   
   // Use unlocked words hook to fetch from edge function - pass initialPackageId
   const { 
@@ -798,16 +799,18 @@ export const WordMatchGame = () => {
       {/* Header with package selector and word list */}
       <header className="mb-4">
         <div className="flex items-center justify-between gap-2 mb-4">
-          <PackageSelector
-            packages={filteredPackages}
-            selectedPackage={selectedPackage}
-            onSelect={handlePackageSelect}
-            loading={unlockedLoading}
-          />
+          {isAdmin && (
+            <PackageSelector
+              packages={filteredPackages}
+              selectedPackage={selectedPackage}
+              onSelect={handlePackageSelect}
+              loading={unlockedLoading}
+            />
+          )}
           
           <button
             onClick={() => setShowWordList(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl text-sm font-medium hover:bg-secondary transition-colors"
+            className={`flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-xl text-sm font-medium hover:bg-secondary transition-colors ${!isAdmin ? 'ml-auto' : ''}`}
           >
             <List className="w-4 h-4" />
             <span>Kelimeler</span>
