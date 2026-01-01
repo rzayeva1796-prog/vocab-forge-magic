@@ -9,9 +9,10 @@ import { WordCatalog } from '@/pages/game4/components/WordCatalog';
 import { DialogCatalog } from '@/pages/game4/components/DialogCatalog';
 import { ConversationCatalog } from '@/pages/game4/components/ConversationCatalog';
 import { WordSearchGame } from '@/pages/game4/components/game/WordSearchGame';
+import { GroqAIChat } from '@/pages/game4/components/GroqAIChat';
 import { supabase } from '@/integrations/supabase/client';
 import { Word, GameContent, WordPackage } from '@/pages/game4/types/game';
-import { BookOpen, ImageIcon, Loader2, Images, Package, Layers, FileText, MessageCircle, Mic, Grid3X3 } from 'lucide-react';
+import { BookOpen, ImageIcon, Loader2, Images, Package, Layers, FileText, MessageCircle, Mic, Grid3X3, Bot } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ExternalPackage {
@@ -25,7 +26,7 @@ interface Section {
   rounds: string[];
 }
 
-type Screen = 'home' | 'packages' | 'sections' | 'section-rounds' | 'game' | 'catalog' | 'word-catalog' | 'dialog-catalog' | 'conversation-catalog' | 'word-search';
+type Screen = 'home' | 'packages' | 'sections' | 'section-rounds' | 'game' | 'catalog' | 'word-catalog' | 'dialog-catalog' | 'conversation-catalog' | 'word-search' | 'groq-chat';
 
 export default function Game4() {
   // URL parametrelerini başta kontrol et
@@ -525,10 +526,19 @@ export default function Game4() {
                 <Button 
                   variant="secondary" 
                   onClick={() => setScreen('catalog')}
-                  className="h-10 text-sm col-span-2"
+                  className="h-10 text-sm"
                 >
                   <Images className="w-4 h-4 mr-1.5" />
                   Resimler
+                </Button>
+
+                <Button 
+                  variant="default" 
+                  onClick={() => setScreen('groq-chat')}
+                  className="h-10 text-sm col-span-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600"
+                >
+                  <Bot className="w-4 h-4 mr-1.5" />
+                  AI Sohbet (Groq)
                 </Button>
               </div>
 
@@ -636,6 +646,10 @@ export default function Game4() {
 
       {screen === 'word-search' && (
         <WordSearchGame onBack={() => setScreen('home')} />
+      )}
+
+      {screen === 'groq-chat' && (
+        <GroqAIChat onBack={() => setScreen('home')} />
       )}
     </div>
   );
