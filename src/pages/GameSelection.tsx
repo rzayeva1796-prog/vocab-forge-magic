@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen, Layers } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -42,6 +42,21 @@ const GameSelection = () => {
         }
       }
       window.location.href = url;
+    } else {
+      navigate("/auth");
+    }
+  };
+
+  const handleGame2Click = () => {
+    if (user) {
+      let url = `/game2?user_id=${user.id}`;
+      if (packageId) {
+        url += `&package_id=${packageId}`;
+      }
+      if (additionalPackageIds) {
+        url += `&additional_package_ids=${additionalPackageIds}`;
+      }
+      navigate(url);
     } else {
       navigate("/auth");
     }
@@ -118,6 +133,15 @@ const GameSelection = () => {
           >
             <BookOpen className="w-8 h-8 mr-3" />
             Game 1
+          </Button>
+          
+          <Button
+            onClick={handleGame2Click}
+            className="w-full h-20 text-xl bg-gradient-to-r from-teal-500 to-cyan-500 hover:from-teal-600 hover:to-cyan-600"
+            size="lg"
+          >
+            <Layers className="w-8 h-8 mr-3" />
+            Game 2
           </Button>
         </div>
       </div>
