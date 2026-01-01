@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { GameBoard } from "@/components/GameBoard";
+import { GameBoard } from "../components/GameBoard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useLearnedWords, shuffleArray, type LearnedWord, type GameState } from "@/hooks/useLearnedWords";
-import { PackageSelector } from "@/components/PackageSelector";
+import { useLearnedWords, shuffleArray, type LearnedWord, type GameState } from "../hooks/useLearnedWords";
+import { PackageSelector } from "../components/PackageSelector";
 import { Star, Trophy, BookOpen } from "lucide-react";
 
 const Index = () => {
