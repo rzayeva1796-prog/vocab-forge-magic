@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 
 export interface UnlockedWord {
   id: string;
@@ -22,10 +22,16 @@ interface UnlockedData {
   totalUnlockedWords: number;
 }
 
+const EMPTY_WORDS: UnlockedWord[] = [];
+const EMPTY_PACKAGES: UnlockedPackage[] = [];
+
 export const useUnlockedWords = (userId: string | null) => {
   const [data, setData] = useState<UnlockedData | null>(null);
+  const [words, setWords] = useState<UnlockedWord[]>(EMPTY_WORDS);
+  const [packages, setPackages] = useState<UnlockedPackage[]>(EMPTY_PACKAGES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   const fetchUnlockedWords = async (packageId?: string) => {
     if (!userId) {
@@ -47,6 +53,8 @@ export const useUnlockedWords = (userId: string | null) => {
 
       if (response.ok) {
         setData(result);
+        setWords(result.words || EMPTY_WORDS);
+        setPackages(result.unlockedPackages || EMPTY_PACKAGES);
         setError(null);
       } else {
         setError(result.error || "Bir hata oluştu");
@@ -60,14 +68,11 @@ export const useUnlockedWords = (userId: string | null) => {
   };
 
   useEffect(() => {
-    if (userId) {
+    if (userId && !fetchedRef.current) {
+      fetchedRef.current = true;
       fetchUnlockedWords();
     }
   }, [userId]);
-
-  // Memoize arrays to prevent infinite re-renders
-  const words = useMemo(() => data?.words || [], [data]);
-  const packages = useMemo(() => data?.unlockedPackages || [], [data]);
 
   return { 
     data, 
