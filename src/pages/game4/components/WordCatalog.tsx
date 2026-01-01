@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, BookOpen, Volume2, Loader2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Volume2, Loader2, Sparkles, Copy, Check } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -17,6 +17,8 @@ interface WordItem {
   package_name: string | null;
   audio_url?: string | null;
   image_url?: string | null;
+  sentence?: string;
+  sentenceTranslation?: string;
 }
 
 export function WordCatalog({ onBack }: WordCatalogProps) {
@@ -25,6 +27,8 @@ export function WordCatalog({ onBack }: WordCatalogProps) {
   const [selectedPackage, setSelectedPackage] = useState<string>('');
   const [packages, setPackages] = useState<string[]>([]);
   const [speakingWord, setSpeakingWord] = useState<string | null>(null);
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [copiedWord, setCopiedWord] = useState<string | null>(null);
 
   useEffect(() => {
     loadPackages();
@@ -105,6 +109,65 @@ export function WordCatalog({ onBack }: WordCatalogProps) {
     }
   };
 
+  const generateSentence = async (word: WordItem) => {
+    setGeneratingFor(word.id);
+    
+    try {
+      const prompt = `Create a simple English sentence using the word "${word.english}" (Turkish: ${word.turkish}).
+The sentence should be:
+- Easy to understand for language learners
+- 5-12 words long
+- Natural and practical
+
+Return ONLY valid JSON in this exact format (no markdown, no explanation):
+{"sentence": "Your example sentence here.", "translation": "Türkçe çevirisi burada."}`;
+
+      const { data, error } = await supabase.functions.invoke('groq-chat', {
+        body: { 
+          message: prompt,
+          systemPrompt: 'You are a language learning assistant. Always return valid JSON only, no markdown.'
+        }
+      });
+
+      if (error) throw error;
+
+      const response = data.response || '';
+      
+      try {
+        // Extract JSON from the response
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          setWords(prev => prev.map(w => 
+            w.id === word.id 
+              ? { ...w, sentence: parsed.sentence, sentenceTranslation: parsed.translation }
+              : w
+          ));
+          toast.success('Cümle oluşturuldu!');
+        } else {
+          throw new Error('No valid JSON found');
+        }
+      } catch (parseError) {
+        console.error('Parse error:', parseError, response);
+        toast.error('Cümle oluşturulamadı');
+      }
+    } catch (error) {
+      console.error('Error generating sentence:', error);
+      toast.error('Cümle oluşturulurken hata oluştu');
+    } finally {
+      setGeneratingFor(null);
+    }
+  };
+
+  const copySentence = (word: WordItem) => {
+    if (word.sentence) {
+      navigator.clipboard.writeText(`${word.sentence}\n${word.sentenceTranslation || ''}`);
+      setCopiedWord(word.id);
+      setTimeout(() => setCopiedWord(null), 2000);
+      toast.success('Kopyalandı!');
+    }
+  };
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <div className="sticky top-0 z-10 bg-background border-b border-border p-3 flex-shrink-0">
@@ -153,29 +216,77 @@ export function WordCatalog({ onBack }: WordCatalogProps) {
             {words.map((word, index) => (
               <div 
                 key={word.id}
-                className="p-3 rounded-lg border border-border bg-card flex items-center gap-3"
+                className="p-3 rounded-lg border border-border bg-card"
               >
-                <span className="text-xs text-muted-foreground w-6">{index + 1}</span>
-                <div className="flex-1">
-                  <p className="font-medium text-foreground">{word.english}</p>
-                  <p className="text-sm text-muted-foreground">{word.turkish}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground w-6">{index + 1}</span>
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{word.english}</p>
+                    <p className="text-sm text-muted-foreground">{word.turkish}</p>
+                  </div>
+                  {word.image_url && (
+                    <img 
+                      src={word.image_url} 
+                      alt={word.english}
+                      className="w-10 h-10 rounded object-cover"
+                    />
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => speakWord(word.english)}
+                    disabled={speakingWord === word.english}
+                    className="h-8 w-8"
+                  >
+                    <Volume2 className={`w-4 h-4 ${speakingWord === word.english ? 'text-primary animate-pulse' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => generateSentence(word)}
+                    disabled={generatingFor === word.id}
+                    className="h-8 w-8"
+                    title="AI ile cümle oluştur"
+                  >
+                    {generatingFor === word.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 text-purple-500" />
+                    )}
+                  </Button>
                 </div>
-                {word.image_url && (
-                  <img 
-                    src={word.image_url} 
-                    alt={word.english}
-                    className="w-10 h-10 rounded object-cover"
-                  />
+
+                {/* Generated sentence */}
+                {word.sentence && (
+                  <div className="mt-3 pt-3 border-t border-border/50">
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <p className="text-sm text-foreground">{word.sentence}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{word.sentenceTranslation}</p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => speakWord(word.sentence!)}
+                        className="h-7 w-7"
+                      >
+                        <Volume2 className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => copySentence(word)}
+                        className="h-7 w-7"
+                      >
+                        {copiedWord === word.id ? (
+                          <Check className="w-3 h-3 text-green-500" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
                 )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => speakWord(word.english)}
-                  disabled={speakingWord === word.english}
-                  className="h-8 w-8"
-                >
-                  <Volume2 className={`w-4 h-4 ${speakingWord === word.english ? 'text-primary animate-pulse' : ''}`} />
-                </Button>
               </div>
             ))}
           </div>
@@ -184,7 +295,7 @@ export function WordCatalog({ onBack }: WordCatalogProps) {
 
       <div className="p-3 border-t border-border">
         <p className="text-xs text-muted-foreground text-center">
-          Toplam: {words.length} kelime
+          Toplam: {words.length} kelime • <Sparkles className="w-3 h-3 inline" /> Groq AI ile cümle oluştur
         </p>
       </div>
     </div>
