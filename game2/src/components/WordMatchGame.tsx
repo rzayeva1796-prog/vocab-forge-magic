@@ -4,9 +4,9 @@ import { PackageSelector } from './PackageSelector';
 import { WordListModal } from './WordListModal';
 import { GameOverModal } from './GameOverModal';
 import { ScoreDisplay } from './ScoreDisplay';
-import { Word, WordWithStar, Package, GameState, UserWordProgress, GameProgress } from '@/types/game';
-import { externalSupabase } from '@/lib/externalSupabase';
-import { useUnlockedWords } from '@/hooks/useUnlockedWords';
+import { Word, WordWithStar, Package, GameState, UserWordProgress, GameProgress } from '../types/game';
+import { externalSupabase } from '../lib/externalSupabase';
+import { useUnlockedWords } from '../hooks/useUnlockedWords';
 import { List } from 'lucide-react';
 
 const shuffleArray = <T,>(array: T[]): T[] => {
