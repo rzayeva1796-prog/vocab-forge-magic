@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Image, Loader2, Download, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, Image, Loader2, Download, Check } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -29,7 +29,6 @@ export function ImageCatalog({ words: propWords, onUpdate, onBack, onSave }: Ima
 
   useEffect(() => {
     if (selectedPackage) {
-      setLoading(true);
       loadWords(selectedPackage);
     }
   }, [selectedPackage]);
@@ -285,31 +284,8 @@ export function ImageCatalog({ words: propWords, onUpdate, onBack, onSave }: Ima
                   <p className="text-xs text-muted-foreground truncate">{word.turkish}</p>
                 </div>
                 {word.image_url && (
-                  <div className="flex justify-center mt-1 gap-2">
+                  <div className="flex justify-center mt-1">
                     <Check className="w-4 h-4 text-green-500" />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        try {
-                          await supabase
-                            .from('learned_words')
-                            .update({ image_url: null })
-                            .eq('id', word.id);
-                          
-                          setWords(prev => prev.map(w => 
-                            w.id === word.id ? { ...w, image_url: undefined } : w
-                          ));
-                          toast.success('Resim silindi');
-                        } catch (error) {
-                          console.error('Error deleting image:', error);
-                          toast.error('Resim silinemedi');
-                        }
-                      }}
-                      className="h-6 w-6 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
                   </div>
                 )}
               </div>

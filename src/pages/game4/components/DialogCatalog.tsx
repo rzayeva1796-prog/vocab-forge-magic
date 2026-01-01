@@ -31,7 +31,6 @@ export function DialogCatalog({ onBack }: DialogCatalogProps) {
   useEffect(() => {
     if (selectedPackage) {
       loadWords(selectedPackage);
-      setDialog([]); // Paket değişince dialogu sıfırla
     }
   }, [selectedPackage]);
 
@@ -115,14 +114,7 @@ Return ONLY valid JSON in this exact format (no markdown):
 
       if (error) throw error;
 
-      // ai-chat fonksiyonu "reply" döndürüyor
-      const response = data?.reply || data?.response || data?.message || '';
-      
-      console.log('AI Response:', response);
-      
-      if (!response) {
-        throw new Error('Empty response from AI');
-      }
+      const response = data.response || data.message || '';
       
       // Try to parse JSON from response
       try {
@@ -131,13 +123,11 @@ Return ONLY valid JSON in this exact format (no markdown):
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           setDialog(parsed);
-          toast.success('Diyalog oluşturuldu!');
         } else {
           throw new Error('No valid JSON found');
         }
       } catch (parseError) {
         console.error('Parse error:', parseError);
-        console.error('Raw response:', response);
         toast.error('Diyalog oluşturulamadı. Tekrar deneyin.');
       }
     } catch (error) {
