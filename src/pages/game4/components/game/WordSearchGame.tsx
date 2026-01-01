@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Trophy, ChevronRight, Lightbulb } from 'lucide-react';
-import { externalSupabase } from '@/lib/externalSupabase';
+import { externalSupabase } from '../../lib/externalSupabase';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface WordSearchGameProps {

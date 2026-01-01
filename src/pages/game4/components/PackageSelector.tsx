@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
-import { externalSupabase, ExternalPackage } from '@/lib/externalSupabase';
+import { externalSupabase } from '../lib/externalSupabase';
 import { Loader2, Package } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface ExternalPackage {
+  id: string;
+  name: string;
+  created_at: string;
+}
 
 interface PackageSelectorProps {
   onSelectPackage: (pkg: ExternalPackage) => void;

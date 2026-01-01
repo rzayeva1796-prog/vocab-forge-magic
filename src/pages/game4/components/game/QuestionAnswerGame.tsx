@@ -1,7 +1,22 @@
 import { useState, useEffect } from 'react';
-import { Word, GameContent } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Volume2 } from 'lucide-react';
+
+interface Word {
+  id: string;
+  english: string;
+  turkish: string;
+  audio_url?: string;
+  image_url?: string;
+}
+
+interface GameContent {
+  id: string;
+  word_id: string;
+  content_type: 'sentence' | 'question';
+  content: string;
+  options: { text: string; isCorrect: boolean }[] | null;
+}
 
 interface QuestionAnswerGameProps {
   currentWord: Word;

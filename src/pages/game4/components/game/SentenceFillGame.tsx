@@ -1,14 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Word } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Volume2, Snail } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 
-interface WordSentence {
+interface Word {
+  id: string;
   english: string;
-  sentence: string;
-  sentence_turkish: string;
-  package_name: string;
+  turkish: string;
+  audio_url?: string;
+  image_url?: string;
 }
 
 interface SentenceFillGameProps {
@@ -31,7 +30,6 @@ export function SentenceFillGame({
 }: SentenceFillGameProps) {
   const [selectedWords, setSelectedWords] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
-  const [sentenceData, setSentenceData] = useState<WordSentence | null>(null);
 
   // Determine translation direction: even index = EN→TR, odd index = TR→EN
   const isEnglishToTurkish = currentIndex % 2 === 0;
@@ -53,47 +51,10 @@ export function SentenceFillGame({
     speechSynthesis.getVoices();
   }, []);
 
-  // Load sentence from database
-  useEffect(() => {
-    const loadSentence = async () => {
-      const { data } = await supabase
-        .from('word_sentences')
-        .select('*')
-        .eq('package_name', packageName)
-        .eq('english', currentWord.english)
-        .maybeSingle();
-      
-      if (data) {
-        setSentenceData(data as WordSentence);
-      }
-    };
-    
-    loadSentence();
-  }, [currentWord.english, packageName]);
-
-  // Parse sentences into word tokens based on direction
+  // Parse words based on direction - using word pair only (no sentence data)
   const { sourceWords, targetWords, shuffledTargetWords, sourceLang } = useMemo(() => {
-    if (!sentenceData) {
-      return { 
-        sourceWords: [isEnglishToTurkish ? currentWord.english : currentWord.turkish], 
-        targetWords: [isEnglishToTurkish ? currentWord.turkish : currentWord.english],
-        shuffledTargetWords: [isEnglishToTurkish ? currentWord.turkish : currentWord.english],
-        sourceLang: isEnglishToTurkish ? 'en' : 'tr'
-      };
-    }
-
-    const engWords = sentenceData.sentence
-      .split(/[\s]+/)
-      .filter(w => w.trim())
-      .map(w => w.trim());
-
-    const turWords = sentenceData.sentence_turkish
-      .split(/[\s]+/)
-      .filter(w => w.trim())
-      .map(w => w.trim());
-
-    const srcWords = isEnglishToTurkish ? engWords : turWords;
-    const tgtWords = isEnglishToTurkish ? turWords : engWords;
+    const srcWords = [isEnglishToTurkish ? currentWord.english : currentWord.turkish];
+    const tgtWords = [isEnglishToTurkish ? currentWord.turkish : currentWord.english];
     const shuffled = [...tgtWords].sort(() => Math.random() - 0.5);
 
     return { 
@@ -102,7 +63,7 @@ export function SentenceFillGame({
       shuffledTargetWords: shuffled,
       sourceLang: isEnglishToTurkish ? 'en' : 'tr'
     };
-  }, [sentenceData, currentWord, isEnglishToTurkish]);
+  }, [currentWord, isEnglishToTurkish]);
 
   const speak = (text: string, slow: boolean = false) => {
     speechSynthesis.cancel();
@@ -140,17 +101,15 @@ export function SentenceFillGame({
     }, 1500);
   };
 
-  const fullSourceSentence = sentenceData 
-    ? (isEnglishToTurkish ? sentenceData.sentence : sentenceData.sentence_turkish)
-    : (isEnglishToTurkish ? currentWord.english : currentWord.turkish);
+  const fullSourceSentence = isEnglishToTurkish ? currentWord.english : currentWord.turkish;
 
   return (
     <div className="flex flex-col h-full p-4">
       <h2 className="text-xl font-bold text-foreground mb-4">
-        {isEnglishToTurkish ? 'Bu cümleyi Türkçeye çevir' : 'Bu cümleyi İngilizceye çevir'}
+        {isEnglishToTurkish ? 'Bu kelimeyi Türkçeye çevir' : 'Bu kelimeyi İngilizceye çevir'}
       </h2>
       
-      {/* Source sentence with speaker */}
+      {/* Source word with speaker */}
       <div className="flex items-start gap-3 mb-6">
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center text-3xl flex-shrink-0">
           {avatar}
@@ -192,7 +151,7 @@ export function SentenceFillGame({
         <div className="min-h-20 border-2 border-dashed border-border rounded-xl mb-4 p-3 flex flex-wrap gap-2">
           {selectedWords.length === 0 ? (
             <span className="text-muted-foreground text-sm">
-              {isEnglishToTurkish ? 'Türkçe kelimeleri sırayla seçin...' : 'İngilizce kelimeleri sırayla seçin...'}
+              {isEnglishToTurkish ? 'Türkçe çeviriyi seçin...' : 'İngilizce çeviriyi seçin...'}
             </span>
           ) : (
             selectedWords.map((wordKey, i) => {

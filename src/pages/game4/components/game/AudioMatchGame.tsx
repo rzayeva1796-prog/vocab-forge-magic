@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Word } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Volume2, Check } from 'lucide-react';
+
+interface Word {
+  id: string;
+  english: string;
+  turkish: string;
+  audio_url?: string;
+  image_url?: string;
+}
 
 interface AudioMatchGameProps {
   words: Word[];

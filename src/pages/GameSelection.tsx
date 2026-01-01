@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen, Layers, Puzzle } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen, Layers, Puzzle, Type } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -65,6 +65,21 @@ const GameSelection = () => {
   const handleGame3Click = () => {
     if (user) {
       let url = `/game3?user_id=${user.id}`;
+      if (packageId) {
+        url += `&package_id=${packageId}`;
+      }
+      if (additionalPackageIds) {
+        url += `&additional_package_ids=${additionalPackageIds}`;
+      }
+      navigate(url);
+    } else {
+      navigate("/auth");
+    }
+  };
+
+  const handleGame4Click = () => {
+    if (user) {
+      let url = `/game4?user_id=${user.id}`;
       if (packageId) {
         url += `&package_id=${packageId}`;
       }
@@ -166,6 +181,15 @@ const GameSelection = () => {
           >
             <Puzzle className="w-8 h-8 mr-3" />
             Game 3
+          </Button>
+          
+          <Button
+            onClick={handleGame4Click}
+            className="w-full h-20 text-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600"
+            size="lg"
+          >
+            <Type className="w-8 h-8 mr-3" />
+            Kelime
           </Button>
         </div>
       </div>
