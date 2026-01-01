@@ -103,8 +103,10 @@ export function useLearnedWords() {
   };
 
   useEffect(() => {
-    fetchRatingsAndMerge();
-  }, [unlockedWords, userId]);
+    if (unlockedWords.length > 0 || userId) {
+      fetchRatingsAndMerge();
+    }
+  }, [unlockedWords.length, userId]);
 
   // Fetch total XP from profiles table
   const fetchTotalXP = async () => {
