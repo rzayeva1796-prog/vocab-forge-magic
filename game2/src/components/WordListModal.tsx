@@ -1,4 +1,4 @@
-import { WordWithStar } from '@/types/game';
+import { WordWithStar } from '../types/game';
 import { X, Star } from 'lucide-react';
 
 interface WordListModalProps {
