@@ -23,3 +23,9 @@ verify_jwt = false
 
 [functions.groq-chat]
 verify_jwt = false
+
+[functions.fetch-word-image]
+verify_jwt = false
+
+[functions.generate-ai-image]
+verify_jwt = false
