@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, BookOpen, Loader2, Save, RefreshCw, ChevronDown, ChevronUp, Database } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { externalSupabase } from '@/lib/externalSupabase';
 import { toast } from 'sonner';
 import {
@@ -115,7 +114,7 @@ export function WordCatalog({
 
   const loadSavedSentences = async () => {
     try {
-      const { data } = await supabase
+      const { data } = await externalSupabase
         .from('game_content')
         .select('content, word_id')
         .eq('content_type', 'sentence');
@@ -123,15 +122,15 @@ export function WordCatalog({
       if (data) {
         // word_id'den kelimeyi almak için words tablosunu kontrol et
         const sentences: SavedSentence[] = [];
-        for (const item of data) {
-          const { data: wordData } = await supabase
+        for (const item of data as any[]) {
+          const { data: wordData } = await externalSupabase
             .from('words')
             .select('english')
             .eq('id', item.word_id)
             .single();
           
           if (wordData) {
-            sentences.push({ word: wordData.english, sentence: item.content });
+            sentences.push({ word: (wordData as any).english, sentence: item.content });
           }
         }
         setSavedSentences(sentences);
@@ -147,13 +146,13 @@ export function WordCatalog({
     
     try {
       // Kayıtlı cümleleri yükle (package_name bazlı)
-      const { data: sentencesData } = await supabase
+      const { data: sentencesData } = await externalSupabase
         .from('word_sentences')
         .select('english, sentence, sentence_turkish')
         .eq('package_name', selectedPackage);
       
       // Reddedilen cümleleri yükle
-      const { data: rejectedData } = await supabase
+      const { data: rejectedData } = await externalSupabase
         .from('rejected_sentences')
         .select('english, sentence')
         .eq('package_name', selectedPackage);
@@ -359,7 +358,7 @@ KURALLAR:
 JSON FORMATI (başka bir şey yazma):
 [{"english":"kelime","sentence":"cümle","sentenceTurkish":"çeviri"}]`;
 
-      const { data, error } = await supabase.functions.invoke('groq-chat', {
+      const { data, error } = await externalSupabase.functions.invoke('groq-chat', {
         body: {
           messages: [
             { role: 'user', content: prompt }
@@ -433,7 +432,7 @@ JSON FORMATI (başka bir şey yazma):
       
       // Cümleleri hemen DB'ye kaydet (package_name + english bazlı)
       for (const ws of sentences) {
-        await supabase
+        await externalSupabase
           .from('word_sentences')
           .upsert({
             package_name: selectedPackage,
@@ -463,7 +462,7 @@ JSON FORMATI (başka bir şey yazma):
     try {
       // Her cümle için upsert yap (package_name + english bazlı)
       for (const ws of wordSentences) {
-        await supabase
+        await externalSupabase
           .from('word_sentences')
           .upsert({
             package_name: selectedPackage,
@@ -477,7 +476,7 @@ JSON FORMATI (başka bir şey yazma):
       for (const [wordKey, sentences] of Object.entries(sentenceTrash)) {
         for (const sentence of sentences) {
           // Aynı cümle varsa ekleme
-          const { data: existing } = await supabase
+          const { data: existing } = await externalSupabase
             .from('rejected_sentences')
             .select('id')
             .eq('package_name', selectedPackage)
@@ -486,7 +485,7 @@ JSON FORMATI (başka bir şey yazma):
             .maybeSingle();
           
           if (!existing) {
-            await supabase
+            await externalSupabase
               .from('rejected_sentences')
               .insert({
                 package_name: selectedPackage,
@@ -583,7 +582,7 @@ KURALLAR:
 JSON FORMATI (başka bir şey yazma):
 {"sentence":"cümle","sentenceTurkish":"çeviri"}`;
 
-      const { data, error } = await supabase.functions.invoke('groq-chat', {
+      const { data, error } = await externalSupabase.functions.invoke('groq-chat', {
         body: {
           messages: [
             { role: 'user', content: prompt }
@@ -610,7 +609,7 @@ JSON FORMATI (başka bir şey yazma):
       // Yeni cümleyi hemen DB'ye kaydet (package_name + english bazlı)
       if (selectedPackage) {
         // Yeni cümleyi kaydet
-        await supabase
+        await externalSupabase
           .from('word_sentences')
           .upsert({
             package_name: selectedPackage,
@@ -620,7 +619,7 @@ JSON FORMATI (başka bir şey yazma):
           }, { onConflict: 'package_name,english' });
         
         // Eski cümleyi rejected_sentences'a ekle
-        const { data: existing } = await supabase
+        const { data: existing } = await externalSupabase
           .from('rejected_sentences')
           .select('id')
           .eq('package_name', selectedPackage)
@@ -629,7 +628,7 @@ JSON FORMATI (başka bir şey yazma):
           .maybeSingle();
         
         if (!existing) {
-          await supabase
+          await externalSupabase
             .from('rejected_sentences')
             .insert({
               package_name: selectedPackage,
@@ -663,7 +662,7 @@ JSON FORMATI (başka bir şey yazma):
     
     setIsLoadingSaved(true);
     try {
-      const { data: sentencesData } = await supabase
+      const { data: sentencesData } = await externalSupabase
         .from('word_sentences')
         .select('english, sentence, sentence_turkish')
         .eq('package_name', selectedPackage);
@@ -696,7 +695,7 @@ JSON FORMATI (başka bir şey yazma):
       }
       
       // Reddedilen cümleleri de yükle
-      const { data: rejectedData } = await supabase
+      const { data: rejectedData } = await externalSupabase
         .from('rejected_sentences')
         .select('english, sentence')
         .eq('package_name', selectedPackage);
