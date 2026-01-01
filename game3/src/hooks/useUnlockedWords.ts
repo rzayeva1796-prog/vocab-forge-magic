@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export interface UnlockedWord {
   id: string;
@@ -65,12 +65,16 @@ export const useUnlockedWords = (userId: string | null) => {
     }
   }, [userId]);
 
+  // Memoize arrays to prevent infinite re-renders
+  const words = useMemo(() => data?.words || [], [data]);
+  const packages = useMemo(() => data?.unlockedPackages || [], [data]);
+
   return { 
     data, 
     loading, 
     error, 
     refetch: fetchUnlockedWords,
-    words: data?.words || [],
-    packages: data?.unlockedPackages || []
+    words,
+    packages
   };
 };
