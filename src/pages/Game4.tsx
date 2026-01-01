@@ -9,7 +9,6 @@ import { WordCatalog } from '@/pages/game4/components/WordCatalog';
 import { DialogCatalog } from '@/pages/game4/components/DialogCatalog';
 import { ConversationCatalog } from '@/pages/game4/components/ConversationCatalog';
 import { WordSearchGame } from '@/pages/game4/components/game/WordSearchGame';
-
 import { supabase } from '@/integrations/supabase/client';
 import { Word, GameContent, WordPackage } from '@/pages/game4/types/game';
 import { BookOpen, ImageIcon, Loader2, Images, Package, Layers, FileText, MessageCircle, Mic, Grid3X3 } from 'lucide-react';
@@ -526,12 +525,11 @@ export default function Game4() {
                 <Button 
                   variant="secondary" 
                   onClick={() => setScreen('catalog')}
-                  className="h-10 text-sm"
+                  className="h-10 text-sm col-span-2"
                 >
                   <Images className="w-4 h-4 mr-1.5" />
                   Resimler
                 </Button>
-
               </div>
 
               {wordsWithoutImages.length > 0 && (
@@ -639,7 +637,6 @@ export default function Game4() {
       {screen === 'word-search' && (
         <WordSearchGame onBack={() => setScreen('home')} />
       )}
-
     </div>
   );
 }
