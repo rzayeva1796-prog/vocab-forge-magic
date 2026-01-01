@@ -360,16 +360,14 @@ JSON FORMATI (başka bir şey yazma):
 
       const { data, error } = await externalSupabase.functions.invoke('groq-chat', {
         body: {
-          messages: [
-            { role: 'user', content: prompt }
-          ]
+          message: prompt
         }
       });
 
       if (error) throw error;
 
       // Parse JSON response with better error handling
-      let content = data.content || '';
+      let content = data.response || '';
       
       // Extract JSON array from response
       const jsonMatch = content.match(/\[[\s\S]*?\]/);
@@ -584,15 +582,13 @@ JSON FORMATI (başka bir şey yazma):
 
       const { data, error } = await externalSupabase.functions.invoke('groq-chat', {
         body: {
-          messages: [
-            { role: 'user', content: prompt }
-          ]
+          message: prompt
         }
       });
 
       if (error) throw error;
 
-      let content = data.content || '';
+      let content = data.response || '';
       const jsonMatch = content.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) throw new Error('JSON bulunamadı');
       
