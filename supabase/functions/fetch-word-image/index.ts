@@ -342,7 +342,7 @@ serve(async (req) => {
     // Save to database
     if (validImageUrl) {
       const { error } = await supabase
-        .from('words')
+        .from('learned_words')
         .update({ image_url: validImageUrl })
         .eq('id', wordId)
 
