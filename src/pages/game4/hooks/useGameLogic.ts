@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Word, GameStage, GameContent } from '@/types/game';
+import { Word, GameStage, GameContent } from '@/pages/game4/types/game';
 
 interface UseGameLogicProps {
   words: Word[];

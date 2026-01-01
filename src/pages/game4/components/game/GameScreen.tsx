@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Word, GameContent } from '@/types/game';
-import { useGameLogic } from '@/hooks/useGameLogic';
+import { Word, GameContent } from '@/pages/game4/types/game';
+import { useGameLogic } from '@/pages/game4/hooks/useGameLogic';
 import { GameProgress } from './GameProgress';
 import { ImageMatchGame } from './ImageMatchGame';
 import { SentenceFillGame } from './SentenceFillGame';
@@ -47,7 +47,7 @@ export function GameScreen({ words, gameContent, roundIndex, packageName, vocabu
         <h2 className="text-2xl font-bold text-foreground mb-2">Tebrikler!</h2>
         <p className="text-muted-foreground mb-8">
           Tur {roundIndex + 1} tamamlandı!<br />
-          5 kelimeyi başarıyla öğrendiniz.
+          {words.length} kelimeyi başarıyla öğrendiniz.
         </p>
         <Button onClick={onComplete} className="w-full max-w-xs h-14 text-lg">
           Devam Et
