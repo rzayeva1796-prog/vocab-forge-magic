@@ -17,22 +17,26 @@ serve(async (req) => {
       throw new Error('GROQ_API_KEY is not configured');
     }
 
-    const { message, systemPrompt, conversationHistory } = await req.json();
-
-    if (!message) {
-      throw new Error('Message is required');
+    const body = await req.json();
+    
+    // Support both 'messages' array format and legacy 'message' string format
+    let messages;
+    if (body.messages) {
+      messages = body.messages;
+    } else if (body.message) {
+      messages = [
+        { 
+          role: 'system', 
+          content: body.systemPrompt || 'You are a helpful AI assistant for language learning. Keep responses concise and helpful.' 
+        },
+        ...(body.conversationHistory || []),
+        { role: 'user', content: body.message }
+      ];
+    } else {
+      throw new Error('Either messages array or message string is required');
     }
 
-    console.log('Groq AI request received, message length:', message.length);
-
-    const messages = [
-      { 
-        role: 'system', 
-        content: systemPrompt || 'You are a helpful AI assistant for language learning. Keep responses concise and helpful.' 
-      },
-      ...(conversationHistory || []),
-      { role: 'user', content: message }
-    ];
+    console.log('Groq AI request received, message count:', messages.length);
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
