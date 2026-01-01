@@ -5,6 +5,7 @@ export interface Word {
   turkish: string;
   image_url: string | null;
   word_index: number;
+  package_name?: string | null;
 }
 
 export interface WordPackage {
