@@ -108,8 +108,11 @@ Return ONLY valid JSON in this exact format (no markdown):
   {"speaker": "B", "text": "I'm fine, thank you!", "translation": "İyiyim, teşekkürler!"}
 ]`;
 
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: { message: prompt }
+      const { data, error } = await supabase.functions.invoke('groq-chat', {
+        body: { 
+          message: prompt,
+          systemPrompt: 'You are a language learning assistant. Create natural dialogues for English learners. Always return valid JSON only, no markdown.'
+        }
       });
 
       if (error) throw error;
