@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen, Layers } from "lucide-react";
+import { Gamepad2, Zap, GitCompare, LogIn, MessageSquareText, BookOpen, Layers, Puzzle } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomNavigation } from "@/components/BottomNavigation";
@@ -50,6 +50,21 @@ const GameSelection = () => {
   const handleGame2Click = () => {
     if (user) {
       let url = `/game2?user_id=${user.id}`;
+      if (packageId) {
+        url += `&package_id=${packageId}`;
+      }
+      if (additionalPackageIds) {
+        url += `&additional_package_ids=${additionalPackageIds}`;
+      }
+      navigate(url);
+    } else {
+      navigate("/auth");
+    }
+  };
+
+  const handleGame3Click = () => {
+    if (user) {
+      let url = `/game3?user_id=${user.id}`;
       if (packageId) {
         url += `&package_id=${packageId}`;
       }
@@ -142,6 +157,15 @@ const GameSelection = () => {
           >
             <Layers className="w-8 h-8 mr-3" />
             Game 2
+          </Button>
+          
+          <Button
+            onClick={handleGame3Click}
+            className="w-full h-20 text-xl bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600"
+            size="lg"
+          >
+            <Puzzle className="w-8 h-8 mr-3" />
+            Game 3
           </Button>
         </div>
       </div>
