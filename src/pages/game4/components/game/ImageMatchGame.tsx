@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Word } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Volume2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+
+interface Word {
+  id: string;
+  english: string;
+  turkish: string;
+  audio_url?: string;
+  image_url?: string;
+}
 
 interface ImageMatchGameProps {
   currentWord: Word;
@@ -19,14 +26,12 @@ export function ImageMatchGame({ currentWord, options, onCorrect, onWrong }: Ima
 
   // Preload TTS voices on mount to avoid delay
   useEffect(() => {
-    // Warm up speech synthesis
     const warmUp = () => {
       const utterance = new SpeechSynthesisUtterance('');
       utterance.volume = 0;
       speechSynthesis.speak(utterance);
     };
     warmUp();
-    // Also load voices
     speechSynthesis.getVoices();
   }, []);
 
@@ -35,31 +40,6 @@ export function ImageMatchGame({ currentWord, options, onCorrect, onWrong }: Ima
     const allOptions = [currentWord, ...options];
     setShuffledOptions(allOptions.sort(() => Math.random() - 0.5));
   }, [currentWord.id]);
-
-  // Fetch images for words that don't have image_url
-  useEffect(() => {
-    const fetchMissingImages = async () => {
-      const wordsToFetch = shuffledOptions.filter(word => !word.image_url && !wordImages[word.id]);
-      
-      for (const word of wordsToFetch) {
-        try {
-          const { data } = await supabase.functions.invoke('fetch-word-image', {
-            body: { wordId: word.id, query: word.english }
-          });
-          
-          if (data?.imageUrl) {
-            setWordImages(prev => ({ ...prev, [word.id]: data.imageUrl }));
-          }
-        } catch (error) {
-          console.error('Error fetching image for', word.english, error);
-        }
-      }
-    };
-
-    if (shuffledOptions.length > 0) {
-      fetchMissingImages();
-    }
-  }, [shuffledOptions]);
 
   const getImageUrl = (word: Word): string | null => {
     return word.image_url || wordImages[word.id] || null;

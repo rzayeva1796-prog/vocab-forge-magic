@@ -1,5 +1,6 @@
-import { GameStage } from '@/types/game';
 import { X, Zap } from 'lucide-react';
+
+type GameStage = 'image-match' | 'sentence-fill' | 'question-answer' | 'audio-match';
 
 interface GameProgressProps {
   current: number;
