@@ -143,7 +143,7 @@ export default function ReadBook() {
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <p className="text-muted-foreground">Kitap bulunamadı</p>
-          <Button variant="outline" onClick={() => navigate("/game4")}>
+          <Button variant="outline" onClick={() => navigate("/books")}>
             Ana Sayfaya Dön
           </Button>
         </div>
@@ -160,12 +160,11 @@ export default function ReadBook() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/game4/book/${book.id}`)}
-              className="text-leather"
+              onClick={() => navigate("/books")}
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="font-display text-lg font-semibold text-foreground truncate">
+            <h1 className="text-lg font-semibold text-foreground truncate">
               {book.title}
             </h1>
           </div>
@@ -176,9 +175,9 @@ export default function ReadBook() {
           <Button
             variant="outline"
             className="mt-4"
-            onClick={() => navigate(`/game4/book/${book.id}`)}
+            onClick={() => navigate("/books")}
           >
-            Detaylara Dön
+            Geri Dön
           </Button>
         </div>
       </div>
@@ -203,12 +202,11 @@ export default function ReadBook() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/game4/book/${book.id}`)}
-              className="text-leather"
+              onClick={() => navigate("/books")}
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="font-display text-lg font-semibold text-foreground truncate">
+            <h1 className="text-lg font-semibold text-foreground truncate">
               {book.title}
             </h1>
           </div>
@@ -244,12 +242,11 @@ export default function ReadBook() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/game4/book/${book.id}`)}
-              className="text-leather"
+              onClick={() => navigate("/books")}
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="font-display text-lg font-semibold text-foreground truncate">
+            <h1 className="text-lg font-semibold text-foreground truncate">
               {book.title}
             </h1>
           </div>
@@ -271,12 +268,11 @@ export default function ReadBook() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/game4/book/${book.id}`)}
-              className="text-leather"
+              onClick={() => navigate("/books")}
             >
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <h1 className="font-display text-sm font-semibold text-foreground truncate max-w-40">
+            <h1 className="text-sm font-semibold text-foreground truncate max-w-40">
               {book.title}
             </h1>
           </div>

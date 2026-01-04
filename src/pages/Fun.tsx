@@ -9,11 +9,7 @@ const Fun = () => {
   const navigate = useNavigate();
 
   const handleBookClick = () => {
-    if (user) {
-      window.location.href = `https://star-reader-sync.lovable.app?user_id=${user.id}`;
-    } else {
-      navigate("/auth");
-    }
+    navigate("/books");
   };
 
   const handleMoviesClick = () => {
