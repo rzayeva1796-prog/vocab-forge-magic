@@ -1,4 +1,30 @@
-export type FileType = 'pdf' | 'docx' | 'epub' | 'txt';
+export interface Word {
+  id: string;
+  english: string;
+  turkish: string;
+  stars: number;
+  word_id?: number;
+}
+
+export interface LearnedWord {
+  id: number;
+  word: string;
+  meaning: string;
+  package_name: string;
+}
+
+export interface UserWordProgress {
+  word_id: number;
+  star_rating: number;
+}
+
+export interface WordPackage {
+  id: string;
+  name: string;
+  words: Word[];
+}
+
+export type FileType = 'pdf' | 'word' | 'manual';
 
 export interface Book {
   id: string;
@@ -10,21 +36,4 @@ export interface Book {
   displayOrder?: number;
   createdAt: Date;
   updatedAt?: Date;
-}
-
-export interface Word {
-  id: string;
-  english: string;
-  turkish: string;
-  stars?: number;
-  package_id?: string;
-  package_name?: string;
-  audio_url?: string;
-  image_url?: string;
-  star_rating?: number;
-}
-
-export interface PackageInfo {
-  id: string;
-  name: string;
 }
