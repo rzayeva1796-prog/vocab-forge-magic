@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Eye, Image, GripHorizontal, Pencil, Gamepad2, MessageSquareText } from "lucide-react";
+import { Lock, Star, Plus, Minus, ImageIcon, Trash2, Image, GripHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,12 +10,13 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { WordsPreviewModal } from "./WordsPreviewModal";
 
-// Available games list
+// Available games list - using internal routes
 const AVAILABLE_GAMES = [
-  { id: "tetris", name: "Tetris", url: "https://wordfall-mix.lovable.app" },
-  { id: "kart", name: "Kart", url: "https://vocab-quest-cards.lovable.app" },
-  { id: "eslestirme", name: "Eşleştirme", url: "https://wordflow-match-up.lovable.app" },
-  { id: "cumle", name: "Cümle", url: "https://kelime-paketi-egitici.lovable.app" },
+  { id: "flash", name: "Flash", route: "/flashcard", mode: "normal" },
+  { id: "flash-hard", name: "Flash Hard", route: "/flashcard", mode: "hard" },
+  { id: "eslestirme", name: "Eşleştirme", route: "/game2", mode: "normal" },
+  { id: "tetris", name: "Tetris", route: "/game3", mode: "normal" },
+  { id: "tetris-hard", name: "Tetris Hard", route: "/game3", mode: "hard" },
 ];
 
 interface Subsection {
@@ -65,8 +66,7 @@ export const SubsectionCard = ({
   const [showBackgroundDialog, setShowBackgroundDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showWordsPreview, setShowWordsPreview] = useState(false);
-  const [showGameDialog, setShowGameDialog] = useState(false);
-  const [showSentenceDialog, setShowSentenceDialog] = useState(false);
+  const [showAdminEditDialog, setShowAdminEditDialog] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<string>(subsection.package_id || "");
   const [selectedGame, setSelectedGame] = useState<string>((subsection as any).selected_game || "");
   const [sentencePackage, setSentencePackage] = useState<string>(subsection.sentence_package || "");
@@ -78,8 +78,7 @@ export const SubsectionCard = ({
   const [uploading, setUploading] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [adjustingStars, setAdjustingStars] = useState(false);
-  const [showNameDialog, setShowNameDialog] = useState(false);
+  
   const [editName, setEditName] = useState((subsection as any).name || subsection.package_name || "");
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
@@ -202,100 +201,75 @@ export const SubsectionCard = ({
       : '';
 
     // Check if there's a pre-selected game for this subsection
-    const selectedGameUrl = subsection.selected_game;
+    const selectedGameId = subsection.selected_game;
 
     console.log("[SubsectionCard] click", {
       subsectionId: subsection.id,
       isAdmin,
       unlocked: subsection.unlocked,
       package_id: subsection.package_id,
-      selected_game: selectedGameUrl,
+      selected_game: selectedGameId,
       sentence_package: subsection.sentence_package,
       sentence_round: subsection.sentence_round,
       additional_package_ids: subsection.additional_package_ids,
       userId: user?.id,
     });
 
+    const navigateToGame = () => {
+      if (selectedGameId) {
+        const game = AVAILABLE_GAMES.find(g => g.id === selectedGameId);
+        if (game) {
+          let route = `${game.route}?package_id=${subsection.package_id}${additionalParam}`;
+          if (game.mode === "hard") {
+            route += "&mode=hard";
+          }
+          if (subsection.sentence_package) {
+            route += `&sentence_package=${subsection.sentence_package}`;
+            if (subsection.sentence_round) {
+              route += `&sentence_round=${subsection.sentence_round}`;
+            }
+          }
+          navigate(route);
+          return;
+        }
+      }
+      // Default: go to game selection
+      navigate(`/game?package_id=${subsection.package_id}${additionalParam}${sentenceParams}`);
+    };
+
     if (isAdmin) {
       if (!subsection.package_id) {
         setShowPackageDialog(true);
-      } else if (selectedGameUrl) {
-        // Navigate directly to the selected game
-        let gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam}`;
-        // Add sentence params for Cümle game
-        if (selectedGameUrl.includes("kelime-paketi-egitici") && subsection.sentence_package) {
-          gameUrl += `&bolum=${subsection.sentence_package}`;
-          if (subsection.sentence_round) {
-            gameUrl += `&tur=${subsection.sentence_round}`;
-          }
-        }
-        window.location.href = gameUrl;
       } else {
-        navigate(`/game?package_id=${subsection.package_id}${additionalParam}${sentenceParams}`);
+        navigateToGame();
       }
     } else {
       if (subsection.package_id && subsection.unlocked) {
-        if (selectedGameUrl) {
-          // Navigate directly to the selected game
-          let gameUrl = `${selectedGameUrl}?user_id=${user?.id}&package_id=${subsection.package_id}${additionalParam}`;
-          // Add sentence params for Cümle game
-          if (selectedGameUrl.includes("kelime-paketi-egitici") && subsection.sentence_package) {
-            gameUrl += `&bolum=${subsection.sentence_package}`;
-            if (subsection.sentence_round) {
-              gameUrl += `&tur=${subsection.sentence_round}`;
-            }
-          }
-          window.location.href = gameUrl;
-        } else {
-          navigate(`/game?package_id=${subsection.package_id}${additionalParam}${sentenceParams}`);
-        }
+        navigateToGame();
       }
     }
   };
   
-  const handleSaveGame = async () => {
+  const handleSaveAdminEdit = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from("subsections")
-        .update({ selected_game: selectedGame || null })
-        .eq("id", subsection.id);
-
-      if (error) throw error;
-      toast.success("Oyun seçimi kaydedildi");
-      setShowGameDialog(false);
-      onUpdate();
-    } catch (error) {
-      console.error("Error saving game:", error);
-      toast.error("Oyun seçimi kaydedilemedi");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveSentence = async () => {
-    setSaving(true);
-    try {
-      // Find Cümle game URL
-      const cumleGame = AVAILABLE_GAMES.find(g => g.id === "cumle");
-      
       const { error } = await supabase
         .from("subsections")
         .update({ 
+          name: editName.trim() || null,
+          selected_game: selectedGame || null,
           sentence_package: sentencePackage || null,
-          sentence_round: sentenceRound ? parseInt(sentenceRound) : null,
-          // Auto-set selected_game to Cümle when sentence settings are saved
-          selected_game: sentencePackage ? cumleGame?.url || null : null
+          sentence_round: sentenceRound ? parseInt(sentenceRound) : null
         })
         .eq("id", subsection.id);
 
       if (error) throw error;
-      toast.success("Cümle ayarları kaydedildi");
-      setShowSentenceDialog(false);
+      toast.success("Ayarlar kaydedildi");
+      setShowAdminEditDialog(false);
       onUpdate();
     } catch (error) {
-      console.error("Error saving sentence settings:", error);
-      toast.error("Cümle ayarları kaydedilemedi");
+      console.error("Error saving settings:", error);
+      toast.error("Ayarlar kaydedilemedi");
     } finally {
       setSaving(false);
     }
@@ -347,26 +321,6 @@ export const SubsectionCard = ({
     }
   };
 
-  const handleSaveName = async () => {
-    if (!editName.trim()) return;
-    setSaving(true);
-    try {
-      const { error } = await supabase
-        .from("subsections")
-        .update({ name: editName.trim() })
-        .eq("id", subsection.id);
-
-      if (error) throw error;
-      toast.success("İsim güncellendi");
-      setShowNameDialog(false);
-      onUpdate();
-    } catch (error) {
-      console.error("Error saving name:", error);
-      toast.error("İsim güncellenemedi");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -482,60 +436,6 @@ export const SubsectionCard = ({
       toast.error("Alt bölüm silinemedi");
     } finally {
       setDeleting(false);
-    }
-  };
-
-  const handleAdjustStars = async (delta: number) => {
-    if (!user || !subsection.package_id) return;
-    
-    setAdjustingStars(true);
-    try {
-      const { data: words } = await supabase
-        .from("learned_words")
-        .select("id")
-        .eq("package_id", subsection.package_id);
-
-      if (!words || words.length === 0) {
-        toast.error("Bu pakette kelime yok");
-        return;
-      }
-
-      const wordIds = words.map(w => w.id);
-
-      const { data: existingProgress } = await supabase
-        .from("user_word_progress")
-        .select("word_id, star_rating")
-        .eq("user_id", user.id)
-        .in("word_id", wordIds);
-
-      const existingMap: Record<string, number> = {};
-      (existingProgress || []).forEach(p => {
-        existingMap[p.word_id] = p.star_rating;
-      });
-
-      const upsertData = wordIds.map(wordId => {
-        const currentRating = existingMap[wordId] ?? 0;
-        const newRating = Math.max(0, Math.min(5, currentRating + delta));
-        return {
-          user_id: user.id,
-          word_id: wordId,
-          star_rating: newRating,
-        };
-      });
-
-      const { error } = await supabase
-        .from("user_word_progress")
-        .upsert(upsertData, { onConflict: "user_id,word_id" });
-
-      if (error) throw error;
-
-      toast.success(delta > 0 ? "Yıldızlar artırıldı" : "Yıldızlar azaltıldı");
-      onUpdate();
-    } catch (error) {
-      console.error("Error adjusting stars:", error);
-      toast.error("Yıldızlar güncellenemedi");
-    } finally {
-      setAdjustingStars(false);
     }
   };
 
@@ -655,128 +555,22 @@ export const SubsectionCard = ({
             </span>
           )}
 
-          {subsection.package_id && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 mt-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowWordsPreview(true);
-              }}
-            >
-              <Eye className="w-3 h-3 mr-1" />
-              Kelimelere Bak
-            </Button>
-          )}
-          
+          {/* Admin + Button only */}
           {isAdmin && subsection.package_id && (
-            <div className="flex gap-1 mt-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAdjustStars(-1);
-                }}
-                disabled={adjustingStars}
-              >
-                <Minus className="w-3 h-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-6 w-6 p-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleAdjustStars(1);
-                }}
-                disabled={adjustingStars}
-              >
-                <Plus className="w-3 h-3" />
-              </Button>
-            </div>
-          )}
-
-          {/* Background Image Button for Admin */}
-          {isAdmin && (
             <Button
               variant="outline"
               size="sm"
-              className="h-6 px-2 mt-1 text-xs"
+              className="h-7 w-7 p-0 mt-1"
               onClick={(e) => {
                 e.stopPropagation();
-                setShowNameDialog(true);
-              }}
-            >
-              <Pencil className="w-3 h-3 mr-1" />
-              İsim
-            </Button>
-          )}
-          
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 mt-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowBackgroundDialog(true);
-              }}
-            >
-              <Image className="w-3 h-3 mr-1" />
-              Arka Plan
-            </Button>
-          )}
-
-          {/* Game Selection Button for Admin */}
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 mt-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
+                setEditName((subsection as any).name || subsection.package_name || "");
                 setSelectedGame(subsection.selected_game || "");
-                setShowGameDialog(true);
-              }}
-            >
-              <Gamepad2 className="w-3 h-3 mr-1" />
-              Oyun Seç
-            </Button>
-          )}
-
-          {/* Sentence Settings Button for Admin */}
-          {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-6 px-2 mt-1 text-xs"
-              onClick={(e) => {
-                e.stopPropagation();
                 setSentencePackage(subsection.sentence_package || "");
                 setSentenceRound(subsection.sentence_round?.toString() || "");
-                setShowSentenceDialog(true);
+                setShowAdminEditDialog(true);
               }}
             >
-              <MessageSquareText className="w-3 h-3 mr-1" />
-              Cümle
-            </Button>
-          )}
-          
-          {isAdmin && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 px-2 text-destructive hover:text-destructive hover:bg-destructive/10 mt-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowDeleteDialog(true);
-              }}
-            >
-              <Trash2 className="w-3 h-3 mr-1" />
-              Sil
+              <Plus className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -853,26 +647,6 @@ export const SubsectionCard = ({
         </DialogContent>
       </Dialog>
 
-      {/* Name Edit Dialog */}
-      <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Alt Bölüm İsmini Düzenle</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Alt bölüm ismi"
-              className="w-full p-2 border rounded-md"
-            />
-            <Button onClick={handleSaveName} disabled={!editName.trim() || saving} className="w-full">
-              {saving ? "Kaydediliyor..." : "Kaydet"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Background Image Dialog */}
       <Dialog open={showBackgroundDialog} onOpenChange={setShowBackgroundDialog}>
@@ -966,48 +740,46 @@ export const SubsectionCard = ({
         </DialogContent>
       </Dialog>
 
-      {/* Game Selection Dialog */}
-      <Dialog open={showGameDialog} onOpenChange={setShowGameDialog}>
-        <DialogContent>
+      {/* Admin Edit Dialog - Combined settings */}
+      <Dialog open={showAdminEditDialog} onOpenChange={setShowAdminEditDialog}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Oyun Seç</DialogTitle>
+            <DialogTitle>Alt Bölüm Ayarları</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Bu alt bölüm için varsayılan oyunu seçin. Seçim yapılmazsa oyun seçim ekranı açılır.
-            </p>
-            <Select value={selectedGame || "__none__"} onValueChange={(val) => setSelectedGame(val === "__none__" ? "" : val)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Oyun seçin (opsiyonel)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Seçim yok (Oyun seçim ekranı)</SelectItem>
-                {AVAILABLE_GAMES.map((game) => (
-                  <SelectItem key={game.id} value={game.url}>
-                    {game.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSaveGame} disabled={saving} className="w-full">
-              {saving ? "Kaydediliyor..." : "Kaydet"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Sentence Settings Dialog */}
-      <Dialog open={showSentenceDialog} onOpenChange={setShowSentenceDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cümle Oyunu Ayarları</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Bu alt bölüm için cümle oyununda açılacak bölüm ve turu seçin.
-            </p>
+            {/* Subsection Name */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Bölüm (örn: 1.1)</label>
+              <label className="text-sm font-medium">Alt Bölüm İsmi</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Alt bölüm ismi"
+                className="w-full p-2 border rounded-md bg-background"
+              />
+            </div>
+
+            {/* Game Selection */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Oyun Seç</label>
+              <Select value={selectedGame || "__none__"} onValueChange={(val) => setSelectedGame(val === "__none__" ? "" : val)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Oyun seçin" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Seçim yok (Tur ekranı)</SelectItem>
+                  {AVAILABLE_GAMES.map((game) => (
+                    <SelectItem key={game.id} value={game.id}>
+                      {game.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sentence Package */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Cümle Paketi (örn: 1.1)</label>
               <input
                 type="text"
                 value={sentencePackage}
@@ -1016,8 +788,10 @@ export const SubsectionCard = ({
                 className="w-full p-2 border rounded-md bg-background"
               />
             </div>
+
+            {/* Sentence Round */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tur</label>
+              <label className="text-sm font-medium">Cümle Turu</label>
               <Select value={sentenceRound || "__none__"} onValueChange={(val) => setSentenceRound(val === "__none__" ? "" : val)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Tur seçin" />
@@ -1032,7 +806,8 @@ export const SubsectionCard = ({
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleSaveSentence} disabled={saving} className="w-full">
+
+            <Button onClick={handleSaveAdminEdit} disabled={saving} className="w-full">
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </div>

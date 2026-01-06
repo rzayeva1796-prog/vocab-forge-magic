@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GameBoard } from "../components/GameBoard";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -8,12 +9,16 @@ import { useIsAdmin } from "../hooks/useIsAdmin";
 import { Star, Trophy, BookOpen } from "lucide-react";
 
 const Index = () => {
+  const [searchParams] = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  
   const [gameState, setGameState] = useState<"loading" | "playing" | "gameover">("loading");
   const [gameWords, setGameWords] = useState<LearnedWord[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(1);
-  const [isHardMode, setIsHardMode] = useState(false);
+  // Start in hard mode if mode=hard param is present
+  const [isHardMode, setIsHardMode] = useState(() => modeParam === "hard");
   const [stackedWords, setStackedWords] = useState<string[]>([]);
   const hasAddedXP = useRef(false);
   const hasAutoStarted = useRef(false);
