@@ -10,10 +10,18 @@ interface Word {
   image_url?: string;
 }
 
+interface SentenceData {
+  id: string;
+  english: string;
+  sentence: string;
+  sentence_turkish: string;
+}
+
 interface SentenceFillGameProps {
   currentWord: Word;
   packageName: string;
   currentIndex: number;
+  sentenceData: SentenceData | null;
   onCorrect: () => void;
   onWrong: () => void;
 }
@@ -25,6 +33,7 @@ export function SentenceFillGame({
   currentWord, 
   packageName,
   currentIndex,
+  sentenceData,
   onCorrect, 
   onWrong 
 }: SentenceFillGameProps) {
@@ -51,19 +60,41 @@ export function SentenceFillGame({
     speechSynthesis.getVoices();
   }, []);
 
-  // Parse words based on direction - using word pair only (no sentence data)
-  const { sourceWords, targetWords, shuffledTargetWords, sourceLang } = useMemo(() => {
-    const srcWords = [isEnglishToTurkish ? currentWord.english : currentWord.turkish];
-    const tgtWords = [isEnglishToTurkish ? currentWord.turkish : currentWord.english];
-    const shuffled = [...tgtWords].sort(() => Math.random() - 0.5);
+  // Reset selection when word changes
+  useEffect(() => {
+    setSelectedWords([]);
+    setShowResult(false);
+  }, [currentWord.id]);
 
-    return { 
-      sourceWords: srcWords, 
-      targetWords: tgtWords,
-      shuffledTargetWords: shuffled,
-      sourceLang: isEnglishToTurkish ? 'en' : 'tr'
-    };
-  }, [currentWord, isEnglishToTurkish]);
+  // Use sentence data from Supabase if available, otherwise fallback to word pair
+  const { sourceText, targetWords, shuffledTargetWords, sourceLang } = useMemo(() => {
+    if (sentenceData) {
+      // Use sentence from Supabase
+      const srcText = isEnglishToTurkish ? sentenceData.sentence : sentenceData.sentence_turkish;
+      const tgtText = isEnglishToTurkish ? sentenceData.sentence_turkish : sentenceData.sentence;
+      const tgtWords = tgtText.split(' ').filter(w => w.trim().length > 0);
+      const shuffled = [...tgtWords].sort(() => Math.random() - 0.5);
+
+      return { 
+        sourceText: srcText,
+        targetWords: tgtWords,
+        shuffledTargetWords: shuffled,
+        sourceLang: isEnglishToTurkish ? 'en' : 'tr'
+      };
+    } else {
+      // Fallback to simple word translation
+      const srcText = isEnglishToTurkish ? currentWord.english : currentWord.turkish;
+      const tgtWords = [isEnglishToTurkish ? currentWord.turkish : currentWord.english];
+      const shuffled = [...tgtWords];
+
+      return { 
+        sourceText: srcText,
+        targetWords: tgtWords,
+        shuffledTargetWords: shuffled,
+        sourceLang: isEnglishToTurkish ? 'en' : 'tr'
+      };
+    }
+  }, [currentWord, isEnglishToTurkish, sentenceData]);
 
   const speak = (text: string, slow: boolean = false) => {
     speechSynthesis.cancel();
@@ -101,15 +132,16 @@ export function SentenceFillGame({
     }, 1500);
   };
 
-  const fullSourceSentence = isEnglishToTurkish ? currentWord.english : currentWord.turkish;
-
   return (
     <div className="flex flex-col h-full p-4">
       <h2 className="text-xl font-bold text-foreground mb-4">
-        {isEnglishToTurkish ? 'Bu kelimeyi Türkçeye çevir' : 'Bu kelimeyi İngilizceye çevir'}
+        {sentenceData 
+          ? (isEnglishToTurkish ? 'Bu cümleyi Türkçeye çevir' : 'Bu cümleyi İngilizceye çevir')
+          : (isEnglishToTurkish ? 'Bu kelimeyi Türkçeye çevir' : 'Bu kelimeyi İngilizceye çevir')
+        }
       </h2>
       
-      {/* Source word with speaker */}
+      {/* Source text with speaker */}
       <div className="flex items-start gap-3 mb-6">
         <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center text-3xl flex-shrink-0">
           {avatar}
@@ -118,30 +150,23 @@ export function SentenceFillGame({
           <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-4 py-3">
             <div className="flex gap-1 flex-shrink-0">
               <button
-                onClick={() => speak(fullSourceSentence, false)}
+                onClick={() => speak(sourceText, false)}
                 className="text-primary hover:text-primary/80 transition-colors"
                 title="Normal hız"
               >
                 <Volume2 className="w-5 h-5" />
               </button>
               <button
-                onClick={() => speak(fullSourceSentence, true)}
+                onClick={() => speak(sourceText, true)}
                 className="text-orange-500 hover:text-orange-400 transition-colors"
                 title="Yavaş seslendir"
               >
                 <Snail className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex flex-wrap gap-1">
-              {sourceWords.map((word, i) => (
-                <span 
-                  key={i} 
-                  className="text-foreground font-medium px-2 py-1 bg-primary/10 rounded"
-                >
-                  {word}
-                </span>
-              ))}
-            </div>
+            <p className="text-foreground font-medium">
+              {sourceText}
+            </p>
           </div>
         </div>
       </div>

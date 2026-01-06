@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Volume2 } from 'lucide-react';
 
@@ -10,29 +10,33 @@ interface Word {
   image_url?: string;
 }
 
-interface GameContent {
-  id: string;
-  word_id: string;
-  content_type: 'sentence' | 'question';
-  content: string;
-  options: { text: string; isCorrect: boolean }[] | null;
+interface DialogData {
+  question: string;
+  correctAnswer: string;
+  wrongAnswer: string | null;
 }
 
 interface QuestionAnswerGameProps {
   currentWord: Word;
-  questionContent: GameContent | null;
+  dialogData: DialogData | null;
   onCorrect: () => void;
   onWrong: () => void;
 }
 
 export function QuestionAnswerGame({ 
   currentWord, 
-  questionContent, 
+  dialogData, 
   onCorrect, 
   onWrong 
 }: QuestionAnswerGameProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [showResult, setShowResult] = useState(false);
+
+  // Reset selection when word changes
+  useEffect(() => {
+    setSelected(null);
+    setShowResult(false);
+  }, [currentWord.id]);
 
   // Preload TTS voices on mount
   useEffect(() => {
@@ -45,15 +49,34 @@ export function QuestionAnswerGame({
     speechSynthesis.getVoices();
   }, []);
 
-  const question = questionContent?.content || `What do you call "${currentWord.turkish}" in English?`;
-  const wrongAnswer = questionContent?.options?.[0]?.text || "Goodbye!";
-  
-  const options = [
-    { text: currentWord.english, isCorrect: true },
-    { text: wrongAnswer, isCorrect: false }
-  ].sort(() => Math.random() - 0.5);
+  // Use dialog data from Supabase if available
+  const { question, options } = useMemo(() => {
+    if (dialogData) {
+      const opts = [
+        { text: dialogData.correctAnswer, isCorrect: true },
+        { text: dialogData.wrongAnswer || "I don't know", isCorrect: false }
+      ].sort(() => Math.random() - 0.5);
+
+      return {
+        question: dialogData.question,
+        options: opts
+      };
+    } else {
+      // Fallback to simple question
+      const opts = [
+        { text: currentWord.english, isCorrect: true },
+        { text: "Goodbye!", isCorrect: false }
+      ].sort(() => Math.random() - 0.5);
+
+      return {
+        question: `What do you call "${currentWord.turkish}" in English?`,
+        options: opts
+      };
+    }
+  }, [currentWord, dialogData]);
 
   const speak = (text: string) => {
+    speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-US';
     speechSynthesis.speak(utterance);
@@ -83,8 +106,8 @@ export function QuestionAnswerGame({
         <div className="w-16 h-16 bg-amber-600 rounded-full flex items-center justify-center text-3xl">
           🐻
         </div>
-        <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-4 py-3">
-          <button onClick={() => speak(question)} className="text-primary">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-2xl px-4 py-3 flex-1">
+          <button onClick={() => speak(question)} className="text-primary flex-shrink-0">
             <Volume2 className="w-5 h-5" />
           </button>
           <span className="text-foreground font-medium underline decoration-dotted">

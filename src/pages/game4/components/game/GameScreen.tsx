@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Word, GameContent } from '@/pages/game4/types/game';
 import { useGameLogic } from '@/pages/game4/hooks/useGameLogic';
+import { useGameContent, getSentenceForWord, getDialogForWord } from '@/pages/game4/hooks/useGameContent';
 import { GameProgress } from './GameProgress';
 import { ImageMatchGame } from './ImageMatchGame';
 import { SentenceFillGame } from './SentenceFillGame';
@@ -23,6 +24,9 @@ interface GameScreenProps {
 
 export function GameScreen({ words, gameContent, roundIndex, packageName, vocabularyWords = [], onComplete, onBack }: GameScreenProps) {
   const [showVocabulary, setShowVocabulary] = useState(false);
+  
+  // Load sentences and dialogs from Supabase
+  const { sentences, dialogs, isLoading: isLoadingContent } = useGameContent(packageName, words);
   
   const {
     stage,
@@ -127,6 +131,7 @@ export function GameScreen({ words, gameContent, roundIndex, packageName, vocabu
             currentWord={currentWord}
             packageName={packageName}
             currentIndex={progress.current}
+            sentenceData={getSentenceForWord(sentences, currentWord.english)}
             onCorrect={handleCorrectAnswer}
             onWrong={handleWrongAnswer}
           />
@@ -135,7 +140,7 @@ export function GameScreen({ words, gameContent, roundIndex, packageName, vocabu
         {stage === 'question-answer' && (
           <QuestionAnswerGame
             currentWord={currentWord}
-            questionContent={getQuestionContent()}
+            dialogData={getDialogForWord(dialogs, currentWord.english)}
             onCorrect={handleCorrectAnswer}
             onWrong={handleWrongAnswer}
           />
