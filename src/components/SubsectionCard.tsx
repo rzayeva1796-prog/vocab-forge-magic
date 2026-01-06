@@ -555,23 +555,36 @@ export const SubsectionCard = ({
             </span>
           )}
 
-          {/* Admin + Button only */}
+          {/* Admin buttons */}
           {isAdmin && subsection.package_id && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 w-7 p-0 mt-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditName((subsection as any).name || subsection.package_name || "");
-                setSelectedGame(subsection.selected_game || "");
-                setSentencePackage(subsection.sentence_package || "");
-                setSentenceRound(subsection.sentence_round?.toString() || "");
-                setShowAdminEditDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
+            <div className="flex gap-1 mt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditName((subsection as any).name || subsection.package_name || "");
+                  setSelectedGame(subsection.selected_game || "");
+                  setSentencePackage(subsection.sentence_package || "");
+                  setSentenceRound(subsection.sentence_round?.toString() || "");
+                  setShowAdminEditDialog(true);
+                }}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDeleteDialog(true);
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
       </div>
