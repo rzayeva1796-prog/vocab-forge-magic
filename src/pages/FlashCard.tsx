@@ -39,6 +39,7 @@ const FlashCardPage = () => {
   const userIdFromUrl = searchParams.get("user_id");
   const userId = userIdFromUrl || user?.id || null;
   const urlPackageId = searchParams.get("package_id");
+  const modeParam = searchParams.get("mode");
 
   const [selectedPackage, setSelectedPackage] = useState<string>(() => urlPackageId || "all");
   const [isAdmin, setIsAdmin] = useState(false);
@@ -81,7 +82,8 @@ const FlashCardPage = () => {
   const [sessionComplete, setSessionComplete] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [currentWordAudio, setCurrentWordAudio] = useState<string>("");
-  const [showWord, setShowWord] = useState(true);
+  // Default to hidden word in hard mode
+  const [showWord, setShowWord] = useState(() => modeParam !== "hard");
   const [sessionInitialized, setSessionInitialized] = useState(false);
 
   useEffect(() => {
