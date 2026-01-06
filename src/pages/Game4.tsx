@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { PackageSelector } from '@/pages/game4/components/PackageSelector';
 import { SectionSelector, parseSectionsFromPackages } from '@/pages/game4/components/SectionSelector';
@@ -28,10 +29,13 @@ interface Section {
 type Screen = 'home' | 'packages' | 'sections' | 'section-rounds' | 'game' | 'catalog' | 'word-catalog' | 'dialog-catalog' | 'conversation-catalog' | 'word-search';
 
 export default function Game4() {
+  const navigate = useNavigate();
+  
   // URL parametrelerini başta kontrol et
   const searchParams = new URLSearchParams(window.location.search);
   const urlBolum = searchParams.get('bolum');
   const urlTur = searchParams.get('tur');
+  const urlSubsectionId = searchParams.get('subsection_id');
   const hasUrlParams = !!(urlBolum && urlTur);
 
   const [screen, setScreen] = useState<Screen>('home');
@@ -54,6 +58,9 @@ export default function Game4() {
   
   // Vocabulary (kelime haznesi)
   const [vocabularyWords, setVocabularyWords] = useState<{ english: string; turkish: string }[]>([]);
+  
+  // Subsection ID for completion (from URL)
+  const [currentSubsectionId, setCurrentSubsectionId] = useState<string | null>(urlSubsectionId);
 
   useEffect(() => {
     // URL parametresi varsa direkt paketi yükle (sections'ı bekleme)
@@ -351,8 +358,89 @@ export default function Game4() {
 
     // Add to completed packages
     setCompletedPackages(prev => [...prev, currentPackage.name]);
+    
+    // If we came from Words page (subsection), update star rating and go back
+    if (currentSubsectionId) {
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user) {
+          // Get the subsection to find its section_id
+          const { data: subsection } = await supabase
+            .from('subsections')
+            .select('section_id, display_order')
+            .eq('id', currentSubsectionId)
+            .single();
+          
+          if (subsection) {
+            // Get all words for this subsection's package to update their star ratings
+            const packageName = currentPackage.name;
+            const { data: words } = await supabase
+              .from('learned_words')
+              .select('id')
+              .eq('package_name', packageName);
+            
+            if (words && words.length > 0) {
+              // Update star rating to 5 for all words in user_word_progress
+              for (const word of words) {
+                await supabase
+                  .from('user_word_progress')
+                  .upsert({
+                    user_id: user.id,
+                    word_id: word.id,
+                    star_rating: 5,
+                    updated_at: new Date().toISOString()
+                  }, { onConflict: 'user_id,word_id' });
+              }
+            }
+            
+            // Activate this subsection for the user (marks it as completed)
+            await supabase
+              .from('user_subsection_activations')
+              .upsert({
+                user_id: user.id,
+                subsection_id: currentSubsectionId,
+                activated_at: new Date().toISOString()
+              }, { onConflict: 'user_id,subsection_id' });
+            
+            // Find and unlock the next subsection in the same section
+            const { data: allSubsections } = await supabase
+              .from('subsections')
+              .select('id, display_order')
+              .eq('section_id', subsection.section_id)
+              .order('display_order', { ascending: true });
+            
+            if (allSubsections) {
+              const currentIndex = allSubsections.findIndex(s => s.id === currentSubsectionId);
+              const nextSubsection = allSubsections[currentIndex + 1];
+              
+              if (nextSubsection) {
+                // Activate next subsection
+                await supabase
+                  .from('user_subsection_activations')
+                  .upsert({
+                    user_id: user.id,
+                    subsection_id: nextSubsection.id,
+                    activated_at: new Date().toISOString()
+                  }, { onConflict: 'user_id,subsection_id' });
+              }
+            }
+          }
+        }
+        
+        toast.success(`${currentPackage.name} tamamlandı! 5 yıldız kazandınız!`);
+        
+        // Navigate back to Words page
+        navigate('/words');
+        return;
+      } catch (error) {
+        console.error('Error completing subsection:', error);
+        toast.error('Bir hata oluştu');
+      }
+    }
 
-    // Go back to section rounds
+    // Go back to section rounds (default behavior)
     setScreen('section-rounds');
     toast.success(`${currentPackage.name} tamamlandı!`);
   };

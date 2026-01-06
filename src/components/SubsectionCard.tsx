@@ -17,6 +17,7 @@ const AVAILABLE_GAMES = [
   { id: "eslestirme", name: "Eşleştirme", route: "/game2", mode: "normal" },
   { id: "tetris", name: "Tetris", route: "/game3", mode: "normal" },
   { id: "tetris-hard", name: "Tetris Hard", route: "/game3", mode: "hard" },
+  { id: "tur", name: "Tur", route: "/game4", mode: "normal" },
 ];
 
 interface Subsection {
@@ -216,6 +217,13 @@ export const SubsectionCard = ({
     });
 
     const navigateToGame = () => {
+      // If sentence_package and sentence_round are set, navigate to Game4 (tur)
+      if (subsection.sentence_package && subsection.sentence_round) {
+        const route = `/game4?bolum=${subsection.sentence_package}&tur=${subsection.sentence_round}&subsection_id=${subsection.id}`;
+        navigate(route);
+        return;
+      }
+      
       if (selectedGameId) {
         const game = AVAILABLE_GAMES.find(g => g.id === selectedGameId);
         if (game) {
